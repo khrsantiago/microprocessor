@@ -1,0 +1,33 @@
+# ==========================================
+# Archivos de Compilación y Binarios
+# ==========================================
+bin/
+*.o
+*.a
+*.so
+
+# ==========================================
+# Archivos de Simulación y Trazas
+# ==========================================
+traces/
+*.vcd
+
+# ==========================================
+# Archivos de Sistema y Editores
+# ==========================================
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
+
+# JetBrains (CLion, IntelliJ, etc.)
+.idea/
+
+# Vim
+*.swp
+*.swo
+
+# Otros temporales
+.DS_Store
+*.tmp
