@@ -25,6 +25,9 @@ SC_MODULE(ControlUnit) {
     sc_out<bool> a_in;   // Habilita la carga (Load) en el Acumulador (Registro A)
     sc_out<bool> pc_load; // Cable para disparar el salto
     sc_out<bool> ram_we;   // Habilitador de escritura de la RAM
+    
+    sc_out<bool> x_in;    // Habilita entrada de Bus a RegX
+    sc_out<bool> x_out;   // Habilita salida RegX al Bus
 
     sc_out<bool> a_out;    // To push Accumulator to the Bus
     sc_out<bool> out_load; // To latch data into the Output Register
@@ -68,6 +71,7 @@ SC_MODULE(ControlUnit) {
         a_out.write(0); out_load.write(0);
         b_in.write(0); alu_out.write(0);
         alu_op.write(0);
+        x_in.write(0); x_out.write(0);
 
         sc_uint<8> op = opcode.read().to_uint(); // Leemos 8 bits
 
@@ -114,6 +118,18 @@ SC_MODULE(ControlUnit) {
                         pc_load.write(0); 
                     }
                 }
+                else if (op == OP_TAX) {
+                    a_out.write(1);
+                    x_in.write(1);
+                }
+                else if (op == OP_TXA) {
+                    x_out.write(1);
+                    a_in.write(1);
+                }
+                else if (op == OP_LDA_X || op == OP_STA_X) {
+                    x_out.write(1); // El RegX manda el valor puntero al bus
+                    mar_in.write(1); // El MAR lo usa como dirección base
+                }
                 else if (op == OP_ADD || op == OP_SUB) {
                     ir_out.write(1); // El IR pone la direccion de la variable en el bus
                     mar_in.write(1); // El MAR la atrapa
@@ -128,7 +144,7 @@ SC_MODULE(ControlUnit) {
                 }
                 break;
             case T8:
-                if (op == OP_LDA) { 
+                if (op == OP_LDA || op == OP_LDA_X) { 
                     ram_out.write(1); // La RAM pone el dato en el bus
                     a_in.write(1);    // El Acumulador atrapa el dato
                 }
@@ -140,7 +156,7 @@ SC_MODULE(ControlUnit) {
                     ram_out.write(1); 
                     b_in.write(1);   
                 }
-                else if (op == OP_STA) {
+                else if (op == OP_STA || op == OP_STA_X) {
                     a_out.write(1);  
                     ram_we.write(1); 
                 }

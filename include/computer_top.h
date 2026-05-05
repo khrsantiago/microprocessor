@@ -37,9 +37,14 @@ SC_MODULE(ComputerTop) {
     sc_signal<bool> s_latched_carry;
     sc_signal<bool> s_false_wire;
     sc_signal<bool> s_regb_carry_dummy;
+    sc_signal<bool> s_regx_zero_dummy;
+    sc_signal<bool> s_regx_carry_dummy;
 
     sc_signal<bool> s_a_out;
     sc_signal<bool> s_out_load;
+    
+    sc_signal<bool> s_x_in;
+    sc_signal<bool> s_x_out;
 
     sc_signal<sc_uint<8>> s_display_val;
 
@@ -57,6 +62,7 @@ SC_MODULE(ComputerTop) {
     sc_signal<sc_lv<8>> s_ir_operand;    
     
     sc_signal<sc_uint<8>> s_rega_out;    // Salida del acumulador
+    sc_signal<sc_uint<8>> s_regx_out;    // Salida del Registro Índice X
 
     sc_signal<sc_uint<8>> s_breg_out;   // Del RegB directo a la ALU
     sc_signal<sc_uint<8>> s_alu_result; // De la ALU a su Buffer
@@ -76,6 +82,7 @@ SC_MODULE(ComputerTop) {
     RAM *Ram;
     Accumulator *RegA;
     Accumulator *RegB;
+    Accumulator *RegX;
     ALU *Alu;
     OutputRegister *OutReg;
     ControlUnit *Cu;
@@ -84,6 +91,7 @@ SC_MODULE(ComputerTop) {
     TriStateBuffer *BufRam;
     TriStateBuffer *BufIr;
     TriStateBuffer *BufRegA;
+    TriStateBuffer *BufRegX;
     TriStateBuffer *BufAlu;
 
     // --- PROCESO TRADUCTOR (GLUE LOGIC) ---
@@ -170,6 +178,8 @@ SC_MODULE(ComputerTop) {
         Cu->flag_c(s_latched_carry);
         Cu->out_load(s_out_load);
         Cu->a_out(s_a_out);
+        Cu->x_in(s_x_in);
+        Cu->x_out(s_x_out);
         Cu->b_in(s_b_in);
         Cu->alu_out(s_alu_out);
         Cu->alu_op(s_alu_op);
@@ -197,6 +207,16 @@ SC_MODULE(ComputerTop) {
         RegB->carry_in(s_false_wire);
         RegB->flag_c(s_regb_carry_dummy);
 
+        // 8.5 Registro Indice X (Punteros)
+        RegX = new Accumulator("RegX");
+        RegX->clk(clk);
+        RegX->ld(s_x_in);
+        RegX->d(s_bus_to_uint);
+        RegX->q(s_regx_out);
+        RegX->flag_z(s_regx_zero_dummy);
+        RegX->carry_in(s_false_wire);
+        RegX->flag_c(s_regx_carry_dummy);
+
         // 9. La Unidad Aritmetico Logica (Tu diseño avanzado)
         Alu = new ALU("ALU");
         Alu->a(s_rega_out); 
@@ -218,6 +238,12 @@ SC_MODULE(ComputerTop) {
         BufRegA->enable(s_a_out);     // Controlado por la CU (a_out)
         BufRegA->bus_out(common_bus); // Habla con el Bus Central
 
+        // Buffer de salida del RegX al Bus
+        BufRegX = new TriStateBuffer("BUF_REGX");
+        BufRegX->data_in(s_regx_out);
+        BufRegX->enable(s_x_out);
+        BufRegX->bus_out(common_bus);
+
         // 3. Connect the Output Register
         OutReg = new OutputRegister("OUT_REG");
         OutReg->clk(clk);
@@ -236,6 +262,7 @@ SC_MODULE(ComputerTop) {
         if(Ir) delete Ir; 
         if(RegA) delete RegA; 
         if(RegB) delete RegB;
+        if(RegX) delete RegX;
         if(Alu) delete Alu; 
         if(OutReg) delete OutReg;
         if(Cu) delete Cu;
@@ -244,6 +271,7 @@ SC_MODULE(ComputerTop) {
         if(BufRam) delete BufRam;
         if(BufIr) delete BufIr;
         if(BufRegA) delete BufRegA;
+        if(BufRegX) delete BufRegX;
         if(BufAlu) delete BufAlu;
     }
 };

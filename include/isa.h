@@ -27,6 +27,10 @@ enum OpCode {
     OP_SUB = 0x3, // 0011 - Subtract from Accumulator
     OP_LDI = 0x4, // 0100 - Load Immediate
     OP_STA = 0x5, // 0101 - Store Accumulator to RAM
+    OP_TAX = 0x6, // 0110 - Transfer A to X
+    OP_TXA = 0x7, // 0111 - Transfer X to A
+    OP_LDA_X = 0xB, // 1011 - Load Accumulator using RAM[X]
+    OP_STA_X = 0xC, // 1100 - Store Accumulator into RAM[X]
     OP_OUT = 0xE, // 1110 - Output Accumulator
     OP_JMP = 0x8, // 1000: Jump (Salto incondicional)
     OP_JZ  = 0x9, // 1001: Salto Condicional (Jump if Zero)

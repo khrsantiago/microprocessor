@@ -35,12 +35,14 @@ void render_dashboard(ComputerTop& comp, bool live_mode) {
     // 1. Panel de Registros (Hardware)
     unsigned int pc = comp.s_pc_to_bus.read().to_uint();
     unsigned char regA = comp.s_rega_out.read().to_uint();
+    unsigned char regX = comp.s_regx_out.read().to_uint();
     int state = comp.Cu->current_state.read() + 1;
     bool z_flag = comp.s_alu_zero_flag.read();
 
     std::cout << IsAHelper::BOLD << " REGISTROS: " << IsAHelper::RESET;
     std::cout << "[PC: 0x" << std::hex << std::setw(2) << std::setfill('0') << pc << std::dec << std::setfill(' ') << "] ";
     std::cout << "[RegA: " << std::dec << (int)regA << "] ";
+    std::cout << "[RegX: " << std::dec << (int)regX << "] ";
     std::cout << "[Zero: " << (z_flag ? "TRUE" : "FALSE") << "] ";
     std::cout << "[Ciclo: T" << state << "]" << std::endl;
     
@@ -114,7 +116,8 @@ int sc_main(int argc, char* argv[]) {
 
     bool halted = false;
 
-    for(int i = 0; i < 20000 && !halted; i++) {
+    // Aumentamos gigantescamente el límite para sostener loops anidados (20 Millones en lugar de 20 Mil)
+    for(unsigned long i = 0; i < 20000000 && !halted; i++) {
         sc_start(10, SC_NS);
         
         int state = Computer.Cu->current_state.read() + 1;
@@ -146,10 +149,14 @@ int sc_main(int argc, char* argv[]) {
         // 2. Registrar Resultados (T12)
         if (state == 12 && !g_history.empty()) {
             std::string res = "";
-            if (opcode == OP_LDA || opcode == OP_LDI || opcode == OP_ADD || opcode == OP_SUB) {
+            if (opcode == OP_LDA || opcode == OP_LDI || opcode == OP_ADD || opcode == OP_SUB || opcode == OP_TXA || opcode == OP_LDA_X) {
                 res = "RegA -> " + std::to_string(Computer.s_rega_out.read().to_uint());
+            } else if (opcode == OP_TAX) {
+                res = "RegX -> " + std::to_string(Computer.s_regx_out.read().to_uint());
             } else if (opcode == OP_STA) {
                 res = "Mem[" + std::to_string(operand) + "] <- " + std::to_string(Computer.s_rega_out.read().to_uint());
+            } else if (opcode == OP_STA_X) {
+                res = "Mem[X(" + std::to_string(Computer.s_regx_out.read().to_uint()) + ")] <- " + std::to_string(Computer.s_rega_out.read().to_uint());
             } else if (opcode == OP_JMP || (opcode == OP_JZ && Computer.s_alu_zero_flag.read()) || (opcode == OP_JC && Computer.s_latched_carry.read())) {
                 res = "SALTO!";
             }

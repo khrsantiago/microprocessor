@@ -28,7 +28,9 @@ public:
             {"NOP", OP_NOP}, {"LDA", OP_LDA}, {"ADD", OP_ADD},
             {"SUB", OP_SUB}, {"OUT", OP_OUT}, {"JMP", OP_JMP},
             {"JZ", OP_JZ},   {"JC", OP_JC},   {"HLT", OP_HLT}, 
-            {"LDI", OP_LDI}, {"STA", OP_STA}
+            {"LDI", OP_LDI}, {"STA", OP_STA},
+            {"TAX", OP_TAX}, {"TXA", OP_TXA},
+            {"LDA_X", OP_LDA_X}, {"STA_X", OP_STA_X}
         };
 
         std::string line;

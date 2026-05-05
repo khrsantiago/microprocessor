@@ -15,8 +15,10 @@ public:
             {OP_SUB, "SUB"},
             {OP_LDI, "LDI"},
             {OP_STA, "STA"},
-            {0x06,   "AND"}, // Reservado para futuro
-            {0x07,   "OR"},  // Reservado para futuro
+            {OP_TAX, "TAX"},
+            {OP_TXA, "TXA"},
+            {OP_LDA_X, "LDA_X"},
+            {OP_STA_X, "STA_X"},
             {OP_JMP, "JMP"},
             {OP_JZ,  "JZ"},
             {OP_JC,  "JC"},
