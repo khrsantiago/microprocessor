@@ -10,10 +10,10 @@
  */
 SC_MODULE(AdderSubtractor) {
     // --- Puertos externos ---
-    sc_in<sc_uint<4>> a, b;
+    sc_in<sc_uint<8>> a, b;
     sc_in<bool> op; // Señal de control: 0 = Suma, 1 = Resta
     
-    sc_out<sc_uint<4>> result;
+    sc_out<sc_uint<8>> result;
     sc_out<bool> cout;
 
     // Bandera
@@ -22,11 +22,11 @@ SC_MODULE(AdderSubtractor) {
     sc_out<bool> overflow; // V-Flag (Para indicar desbordamiento)
 
     // --- Componente interno ---
-    Adder4Bits *adder_4bits;
+    Adder8Bits *adder_8bits;
 
     // --- Cables internos ---
-    sc_signal<sc_uint<4>> processed_b;
-    sc_signal<sc_uint<4>> internal_res; // Señal interna para analizar el resultado
+    sc_signal<sc_uint<8>> processed_b;
+    sc_signal<sc_uint<8>> internal_res; // Señal interna para analizar el resultado
 
     // --- Lógica de Inversión (Complemento a 1) ---
     void process_b() {
@@ -43,21 +43,21 @@ SC_MODULE(AdderSubtractor) {
     // Lógica para calcular las banderas
     void calculate_flags() {
         // Leemos los valores actuales de A, B procesado y el resultado interno
-        sc_uint<4> val_a = a.read();
-        sc_uint<4> val_b_p = processed_b.read();
-        sc_uint<4> res = internal_res.read();
+        sc_uint<8> val_a = a.read();
+        sc_uint<8> val_b_p = processed_b.read();
+        sc_uint<8> res = internal_res.read();
         
         // 1. Lógica de la Bandera de Cero (Z)
-        // Se activa si el resultado es 0000
+        // Se activa si el resultado es 00000000
         zero.write(res == 0);
 
         // 2. Lógica de la Bandera de Negativo (N)
-        // Simplemente miramos el bit 3 (el MSB)
-        negative.write(res[3]);
+        // Simplemente miramos el bit 7 (el MSB de 8 bits)
+        negative.write(res[7]);
 
         // Lógica de Overflow (V):
         // (A_msb == B_msb) AND (A_msb != Res_msb)
-        bool v = (val_a[3] == val_b_p[3]) && (val_a[3] != res[3]);
+        bool v = (val_a[7] == val_b_p[7]) && (val_a[7] != res[7]);
         overflow.write(v);
         
         // Enviamos el resultado al puerto de salida
@@ -67,20 +67,20 @@ SC_MODULE(AdderSubtractor) {
     // --- Constructor ---
     SC_CTOR(AdderSubtractor) {
         // 1. Fabricamos el sumador interno
-        adder_4bits = new Adder4Bits("adder_4bits");
+        adder_8bits = new Adder8Bits("adder_8bits");
 
         // 2. Conectamos los cables
-        adder_4bits->a(a);
-        adder_4bits->b(processed_b); // B modificado (normal o invertido)
+        adder_8bits->a(a);
+        adder_8bits->b(processed_b); // B modificado (normal o invertido)
         
         // ¡LA MAGIA OCURRE AQUÍ!
         // Conectamos el pin de control 'op' directamente al acarreo de entrada (Cin)
         // Si op=0, suma (Cin=0). Si op=1, resta y automáticamente inyecta el +1 del complemento a 2.
-        adder_4bits->cin(op); 
+        adder_8bits->cin(op); 
 
-        adder_4bits->sum(internal_res); // Conectamos a la señal interna
+        adder_8bits->sum(internal_res); // Conectamos a la señal interna
         
-        adder_4bits->cout(cout);        // El acarreo final sale directo
+        adder_8bits->cout(cout);        // El acarreo final sale directo
 
         // 3. Registramos el proceso combinacional
         SC_METHOD(process_b);
@@ -91,7 +91,7 @@ SC_MODULE(AdderSubtractor) {
     }
 
     ~AdderSubtractor() {
-        delete adder_4bits;
+        delete adder_8bits;
     }
 };
 

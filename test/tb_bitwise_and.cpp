@@ -6,7 +6,7 @@ int sc_main(int argc, char* argv[]) {
     sc_report_handler::set_actions(SC_INFO, SC_DO_NOTHING);
 
     // Definición de cables virtuales
-    sc_signal<sc_uint<4>> sig_a, sig_b, sig_result;
+    sc_signal<sc_uint<8>> sig_a, sig_b, sig_result;
 
     // Instanciamos el Dispositivo Bajo Prueba (DUT - Device Under Test)
     BitwiseAnd Dut("dut_bitwise_and");
@@ -14,7 +14,7 @@ int sc_main(int argc, char* argv[]) {
     Dut.b(sig_b);
     Dut.result(sig_result);
 
-    std::cout << "Logical Unit: AND (4-bit)\n";
+    std::cout << "Logical Unit: AND (8-bit)\n";
     std::cout << "Time  |    A    |    B    ||  Result\n";
     std::cout << "--------------------------------------\n";
 

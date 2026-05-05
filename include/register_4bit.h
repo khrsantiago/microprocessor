@@ -3,12 +3,12 @@
 
 #include <systemc.h>
 
-// Modulo de Registro de 4 bits basado en Flip-Flops tipo D
-SC_MODULE(Register4Bit) {
+// Modulo de Registro de 8 bits basado en Flip-Flops tipo D
+SC_MODULE(Register8Bit) {
     // Puertos de hardware
     sc_in<bool> clk;              // Reloj del sistema
-    sc_in<sc_uint<4>> d;          // Entrada de datos
-    sc_out<sc_uint<4>> q;         // Salida de datos / Estado
+    sc_in<sc_uint<8>> d;          // Entrada de datos
+    sc_out<sc_uint<8>> q;         // Salida de datos / Estado
 
     // Logica secuencial: Se ejecuta en los latidos del reloj
     void update_state() {
@@ -19,7 +19,7 @@ SC_MODULE(Register4Bit) {
     }
 
     // Constructor de la placa
-    SC_CTOR(Register4Bit) {
+    SC_CTOR(Register8Bit) {
         SC_METHOD(update_state);
         // ¡LA MAGIA OCURRE AQUI! 
         // Solo somos sensibles al flanco de subida (pos = positive) de la señal 'clk'

@@ -4,7 +4,7 @@
 int sc_main(int argc, char* argv[]) {
     sc_report_handler::set_actions(SC_INFO, SC_DO_NOTHING);
 
-    sc_signal<sc_uint<4>> sig_a, sig_b, sig_res;
+    sc_signal<sc_uint<8>> sig_a, sig_b, sig_res;
     sc_signal<bool> sig_op, sig_cout, sig_z, sig_n, sig_o;
 
     AdderSubtractor Alu("alu_with_flags");
@@ -12,7 +12,7 @@ int sc_main(int argc, char* argv[]) {
     Alu.result(sig_res); Alu.cout(sig_cout);
     Alu.zero(sig_z); Alu.negative(sig_n); Alu.overflow(sig_o);
 
-    std::cout << "Flags Test (4-bit ALU)\n";
+    std::cout << "Flags Test (8-bit ALU)\n";
     std::cout << "Time | A | B | Op || Res | Z | N | Comment\n";
     std::cout << "--------------------------------------------------\n";
 

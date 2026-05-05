@@ -5,18 +5,19 @@
 
 SC_MODULE(ALU) {
     // Inputs: Operands and 2-bit selector
-    sc_in<sc_uint<4>> a;
-    sc_in<sc_uint<4>> b;
+    sc_in<sc_uint<8>> a;
+    sc_in<sc_uint<8>> b;
     sc_in<sc_uint<2>> op; // 00: ADD, 01: SUB, 10: AND, 11: OR
 
     // Outputs: Result and Zero Flag
-    sc_out<sc_uint<4>> result;
+    sc_out<sc_uint<8>> result;
     sc_out<bool> zero_flag;
+    sc_out<bool> carry_flag;
 
     // Behavioral implementation of the ALU
     void execute() {
-        sc_uint<4> val_a = a.read();
-        sc_uint<4> val_b = b.read();
+        sc_uint<8> val_a = a.read();
+        sc_uint<8> val_b = b.read();
         sc_uint<2> opcode = op.read();
 
         // ----------------------------------------------------
@@ -24,24 +25,27 @@ SC_MODULE(ALU) {
         // ----------------------------------------------------
 
         // 1. Conditional Inversion (XOR) for Subtraction
-        // Si opcode == 1 (SUB), xor_mask es 1111. Si no, es 0000.
-        sc_uint<4> xor_mask = (opcode == 1) ? 15 : 0; 
-        sc_uint<4> b_mod = val_b ^ xor_mask;
+        // Si opcode == 1 (SUB), xor_mask es 11111111 (255). Si no, es 00000000.
+        sc_uint<8> xor_mask = (opcode == 1) ? 255 : 0; 
+        sc_uint<8> b_mod = val_b ^ xor_mask;
         
         // El Cin es 1 solo en caso de resta para completar el Complemento a 2
         bool cin = (opcode == 1) ? 1 : 0;
         
-        // Aritmetic Unit
-        sc_uint<4> math_res = val_a + b_mod + cin;
+        // Arithmetic Unit (using 9 bits to capture Carry Out)
+        sc_uint<9> math_res_9 = (sc_uint<9>)val_a + (sc_uint<9>)b_mod + (sc_uint<9>)cin;
+        sc_uint<8> math_res = math_res_9.range(7, 0);
+        bool carry = math_res_9[8];
+        carry_flag.write(carry);
 
-        // Logical Unit
-        sc_uint<4> and_res = val_a & val_b;
-        sc_uint<4> or_res  = val_a | val_b;
+        // 2. Logical Units
+        sc_uint<8> and_res = val_a & val_b;
+        sc_uint<8> or_res  = val_a | val_b;
 
         // ----------------------------------------------------
         // 4-to-1 MULTIPLEXER (MUX)
         // ----------------------------------------------------
-        sc_uint<4> final_result;
+        sc_uint<8> final_result;
 
         switch(opcode) {
             case 0: final_result = math_res; break; // ADD
@@ -54,9 +58,9 @@ SC_MODULE(ALU) {
         // ----------------------------------------------------
         // ZERO FLAG (Explicit NOR gate logic)
         // ----------------------------------------------------
-        // NOR bit a bit: Si algun bit es 1, el OR da 1, y el NOT lo vuelve 0.
-        // Solo si todos son 0, el OR da 0, y el NOT lo vuelve 1 (Zero encendido).
-        bool z = !(final_result[3] | final_result[2] | final_result[1] | final_result[0]);
+        // NOR bit a bit para 8 bits
+        bool z = !(final_result[7] | final_result[6] | final_result[5] | final_result[4] | 
+                   final_result[3] | final_result[2] | final_result[1] | final_result[0]);
 
         // Output routing
         result.write(final_result);

@@ -7,12 +7,12 @@ SC_MODULE(RAM) {
     // Puertos del sistema
     sc_in<bool> clk;                // Reloj (System clock)
     sc_in<bool> we;                 // Habilitador de escritura (Write Enable)
-    sc_in<sc_uint<4>> addr;         // Bus de direcciones de 4 bits (Address)
-    sc_in<sc_uint<4>> data_in;      // Bus de entrada de datos (Data In)
-    sc_out<sc_uint<4>> data_out;    // Bus de salida de datos (Data Out)
+    sc_in<sc_uint<8>> addr;         // Bus de direcciones de 8 bits (Address)
+    sc_in<sc_uint<8>> data_in;      // Bus de entrada de datos (Data In)
+    sc_out<sc_uint<8>> data_out;    // Bus de salida de datos (Data Out)
 
-    // El nucleo de la memoria: Una matriz de 16 posiciones, cada una de 8 bits
-    sc_uint<8> memory[16];
+    // El nucleo de la memoria: Una matriz de 256 posiciones, cada una de 8 bits
+    sc_uint<8> memory[256];
 
     // Proceso 1: Lectura Asincrona (Como mirar por una ventana)
     void read_data() {
@@ -34,7 +34,7 @@ SC_MODULE(RAM) {
 
     SC_CTOR(RAM) {
         // Inicializamos toda la memoria en 0 por seguridad
-        for (int i = 0; i < 16; i++) {
+        for (int i = 0; i < 256; i++) {
             memory[i] = 0;
         }
 

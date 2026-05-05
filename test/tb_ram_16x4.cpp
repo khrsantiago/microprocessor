@@ -6,7 +6,7 @@ int sc_main(int argc, char* argv[]) {
 
     sc_clock clk("sys_clk", 10, SC_NS);
     sc_signal<bool> sig_we;
-    sc_signal<sc_uint<4>> sig_addr, sig_data_in, sig_data_out;
+    sc_signal<sc_uint<8>> sig_addr, sig_data_in, sig_data_out;
 
     RAM Dut("Main_RAM");
     Dut.clk(clk);
@@ -15,7 +15,7 @@ int sc_main(int argc, char* argv[]) {
     Dut.data_in(sig_data_in);
     Dut.data_out(sig_data_out);
 
-    std::cout << "Testing 16x4 RAM (Write Sync / Read Async)\n";
+    std::cout << "Testing 256x8 RAM (Write Sync / Read Async)\n";
     std::cout << "Time  | WE | Address | Data_In | Data_Out | Action\n";
     std::cout << "--------------------------------------------------------\n";
 

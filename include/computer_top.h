@@ -22,43 +22,50 @@ SC_MODULE(ComputerTop) {
     // --- EL SISTEMA NERVIOSO (Senales Internas) ---
 
     // 1. El Bus Central (Resolved para evitar conflictos)
-    sc_signal_rv<4> common_bus;
+    sc_signal_rv<8> common_bus;
 
     // 2. Senales de Control (Emitidas por la CU)
-    sc_signal<bool> s_pc_out, s_pc_inc, s_mar_in, s_ram_out, s_ir_in, s_ir_out, s_a_in;
+    sc_signal<bool> s_pc_out, s_pc_inc, s_mar_in, s_ram_out, s_ir_ld_opcode, s_ir_ld_operand, s_ir_out, s_a_in;
     sc_signal<bool> s_pc_load;
 
     sc_signal<bool> s_ram_we; // Tierra (siempre 0 para lectura)
+    sc_signal<bool> s_alu_neg_flag, s_alu_ovf_flag;
+    sc_signal<bool> s_alu_zero_dummy;
+    sc_signal<bool> s_regb_zero_dummy;
     sc_signal<bool> s_alu_zero_flag;
+    sc_signal<bool> s_alu_carry_comb;
+    sc_signal<bool> s_latched_carry;
+    sc_signal<bool> s_false_wire;
+    sc_signal<bool> s_regb_carry_dummy;
 
     sc_signal<bool> s_a_out;
     sc_signal<bool> s_out_load;
 
-    sc_signal<sc_uint<4>> s_display_val;
+    sc_signal<sc_uint<8>> s_display_val;
 
     sc_signal<bool> s_b_in;    // Para atrapar datos del bus al Registro B
     sc_signal<bool> s_alu_out; // Para enviar el resultado de la ALU al Bus
     sc_signal<sc_uint<2>> s_alu_op; // 0 = Suma, 1 = Resta
 
     // 3. Cables de Datos Especificos
-    sc_signal<sc_uint<4>> s_pc_to_bus;   // Salida del PC antes del Buffer
-    sc_signal<sc_uint<4>> s_ram_to_bus;  // Salida de la RAM antes del Buffer
-    sc_signal<sc_uint<4>> s_mar_to_ram; // Salida limpia del MAR
-    sc_signal<sc_lv<4>> s_ir_opcode;     // OpCode desde el IR a la CU
-    sc_signal<sc_lv<4>> s_ir_operand;    // Operando desde el IR al Bus
-    //sc_signal<sc_uint<4>> s_mar_addr;    // Direccion desde el MAR a la RAM
-    sc_signal<sc_uint<4>> s_rega_out;    // Salida del acumulador
+    sc_signal<sc_uint<8>> s_pc_to_bus;   // Salida del PC antes del Buffer
+    sc_signal<sc_uint<8>> s_ram_to_bus;  // Salida de la RAM antes del Buffer
+    sc_signal<sc_uint<8>> s_mar_to_ram; // Salida limpia del MAR
+    
+    // El IR ahora recibe 1 byte o 2 bytes. Mantendremos la salida de 8 bits para el OpCode y Operand (ahora ambos son 8 bits, pero IR se actualizara despues)
+    sc_signal<sc_lv<8>> s_ir_opcode;     
+    sc_signal<sc_lv<8>> s_ir_operand;    
+    
+    sc_signal<sc_uint<8>> s_rega_out;    // Salida del acumulador
 
-    sc_signal<sc_uint<4>> s_breg_out;   // Del RegB directo a la ALU
-    sc_signal<sc_uint<4>> s_alu_result; // De la ALU a su Buffer
+    sc_signal<sc_uint<8>> s_breg_out;   // Del RegB directo a la ALU
+    sc_signal<sc_uint<8>> s_alu_result; // De la ALU a su Buffer
 
     // Adaptadores de Pegamento
-    sc_signal<sc_uint<4>> s_bus_to_uint;
+    sc_signal<sc_uint<8>> s_bus_to_uint;
     sc_signal<sc_lv<8>>   s_bus_to_ir_8;
-    //sc_signal<sc_uint<4>> s_bus_to_ram_uint; // Convierte el Bus a numero para la RAM
-    //sc_signal<sc_lv<8>>   s_bus_to_ir_lv8;   // Expande el Bus de 4 a 8 bits para el IR
-    sc_signal<sc_uint<4>> s_opcode_to_cu;    // Convierte el OpCode a numero para la CU
-    sc_signal<sc_uint<4>> s_operand_to_pc;
+    sc_signal<sc_uint<8>> s_opcode_to_cu;    // Convierte el OpCode a numero para la CU
+    sc_signal<sc_uint<8>> s_operand_to_pc;
 
     //sc_signal<bool> s_ram_we_read_only;    
 
@@ -80,30 +87,15 @@ SC_MODULE(ComputerTop) {
     TriStateBuffer *BufAlu;
 
     // --- PROCESO TRADUCTOR (GLUE LOGIC) ---
-    // Glue Logic: Traductor de tipos y tamaños
     void signal_adapters() {
-        sc_lv<4> bus_val = common_bus.read();
+        s_false_wire.write(false);
+        sc_lv<8> bus_val = common_bus.read();
         
-        // 1. Bus -> RAM
+        // 1. Bus -> uint (General)
         if (bus_val.is_01()) s_bus_to_uint.write(bus_val.to_uint());
         
-        // 2. Bus -> IR (El Hack de Integración)
-        sc_lv<8> exp = "00000000";
-        
-        // Si la Unidad de Control enciende la señal de "Atrapar Instruccion" (T3)
-        if (s_ir_in.read() == 1) {
-            // Leemos el byte (8 bits) directamente de la RAM usando la direccion del MAR
-            int addr = s_mar_to_ram.read().to_uint();
-            int full_instruction = Ram->memory[addr];
-            
-            // Asignamos el valor real inyectado por el ensamblador
-            exp = full_instruction; 
-        } else {
-            // Comportamiento normal: el bus entra en los 4 bits inferiores
-            exp.range(7, 4) = "0000";
-            exp.range(3, 0) = bus_val;
-        }
-        s_bus_to_ir_8.write(exp);
+        // 2. Bus -> IR (Pasa directo ahora que el bus es de 8 bits)
+        s_bus_to_ir_8.write(bus_val);
 
         // 3. IR -> CU y PC
         if (s_ir_opcode.read().is_01()) s_opcode_to_cu.write(s_ir_opcode.read().to_uint());
@@ -149,9 +141,11 @@ SC_MODULE(ComputerTop) {
         BufRam->enable(s_ram_out);
         BufRam->bus_out(common_bus);
 
-        // 5. Instruction Register
+        // 3. Instruction Register (IR)
         Ir = new InstructionRegister("IR");
-        Ir->clk(clk); Ir->ld(s_ir_in);
+        Ir->clk(clk);
+        Ir->ld_opcode(s_ir_ld_opcode);
+        Ir->ld_operand(s_ir_ld_operand);
         Ir->data_in(s_bus_to_ir_8); // Captura desde el Bus
         Ir->opcode_out(s_ir_opcode);
         Ir->operand_out(s_ir_operand);
@@ -168,13 +162,18 @@ SC_MODULE(ComputerTop) {
         Cu->opcode(s_opcode_to_cu); // Lee el OpCode del IR
         Cu->pc_out(s_pc_out); Cu->pc_inc(s_pc_inc); Cu->pc_load(s_pc_load);
         Cu->mar_in(s_mar_in); Cu->ram_out(s_ram_out);
-        Cu->ir_in(s_ir_in);   Cu->ir_out(s_ir_out);
-        Cu->a_in(s_a_in); Cu->flag_z(s_alu_zero_flag);
+        Cu->ir_ld_opcode(s_ir_ld_opcode);
+        Cu->ir_ld_operand(s_ir_ld_operand);
+        Cu->ir_out(s_ir_out);
+        Cu->a_in(s_a_in); 
+        Cu->flag_z(s_alu_zero_flag);
+        Cu->flag_c(s_latched_carry);
         Cu->out_load(s_out_load);
         Cu->a_out(s_a_out);
         Cu->b_in(s_b_in);
         Cu->alu_out(s_alu_out);
         Cu->alu_op(s_alu_op);
+        Cu->ram_we(s_ram_we);
 
         // 7. Acumulador (Registro A)
         RegA = new Accumulator("RegA");
@@ -184,6 +183,9 @@ SC_MODULE(ComputerTop) {
         // tambien necesita leer un numero limpio
         RegA->d(s_bus_to_uint); 
         RegA->q(s_rega_out); 
+        RegA->flag_z(s_alu_zero_flag);
+        RegA->carry_in(s_alu_carry_comb);
+        RegA->flag_c(s_latched_carry);
 
         // 8. Registro B (Sostiene el segundo operando)
         RegB = new Accumulator("RegB"); // Usamos la misma estructura de registro
@@ -191,6 +193,9 @@ SC_MODULE(ComputerTop) {
         RegB->ld(s_b_in);
         RegB->d(s_bus_to_uint); // Escucha al bus
         RegB->q(s_breg_out);    // Su salida va DIRECTO a la ALU, no al bus
+        RegB->flag_z(s_regb_zero_dummy);
+        RegB->carry_in(s_false_wire);
+        RegB->flag_c(s_regb_carry_dummy);
 
         // 9. La Unidad Aritmetico Logica (Tu diseño avanzado)
         Alu = new ALU("ALU");
@@ -198,7 +203,8 @@ SC_MODULE(ComputerTop) {
         Alu->b(s_breg_out); 
         Alu->op(s_alu_op);           // Usamos tu selector de 2 bits
         Alu->result(s_alu_result); 
-        Alu->zero_flag(s_alu_zero_flag); // Usamos tu nombre exacto para el pin
+        Alu->zero_flag(s_alu_zero_dummy);
+        Alu->carry_flag(s_alu_carry_comb);
 
         // 10. Buffer ALU -> Bus
         BufAlu = new TriStateBuffer("BUF_ALU");
@@ -220,7 +226,7 @@ SC_MODULE(ComputerTop) {
         OutReg->display(s_display_val);
 
 
-        s_ram_we.write(0);
+        // s_ram_we ya no es constante, viene de la Control Unit
     }
 
     ~ComputerTop() {
@@ -242,4 +248,4 @@ SC_MODULE(ComputerTop) {
     }
 };
 
-#endif
+#endif // COMPUTER_TOP_H

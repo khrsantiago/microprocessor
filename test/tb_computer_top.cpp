@@ -13,15 +13,13 @@ int sc_main(int argc, char* argv[]) {
     Computer.clk(clk);
     Computer.reset(reset);  
 
-    // EL PRIMER APRETON DE MANOS (Inyeccion Manual)
-    // LDA = 0001 (1 en Hex), Operando = 0101 (5 en Hex)
-    // Instruccion completa: 0x15
-    // LDA 5: Desplazamos el OpCode 4 bits a la izquierda y sumamos el Operando
-    // Inyectamos un par de instrucciones directo en la ROM
-    Computer.Ram->memory[0] = (OP_LDA << 4) | 0x05;
-    // La RAM_Out deberia conectarse enseguida al Bus, y luego ser capturada
-    // por el Registrador de Instrucciones
-    Computer.Ram->memory[1] = (OP_JMP << 4) | 0x00;
+    // LDA 5: OpCode en mem[0], Operando en mem[1]
+    Computer.Ram->memory[0] = OP_LDA;
+    Computer.Ram->memory[1] = 5;
+    
+    // JMP 0: OpCode en mem[2], Operando en mem[3]
+    Computer.Ram->memory[2] = OP_JMP;
+    Computer.Ram->memory[3] = 0;
     
     // Inyectamos un dato de prueba en la direccion 5
     Computer.Ram->memory[5] = 0x09; // Queremos que este 9 llegue al Acumulador
@@ -37,8 +35,8 @@ int sc_main(int argc, char* argv[]) {
     sc_start(15, SC_NS);
     reset.write(0);
 
-    // Escaneamos 6 ciclos de reloj (Los 6 T-States de la instruccion LDA)
-    for(int i = 0; i < 6; i++) {
+    // Escaneamos 12 ciclos de reloj (Los 12 T-States de la FSM extendida)
+    for(int i = 0; i < 12; i++) {
         sc_start(10, SC_NS);
         
         
@@ -68,13 +66,13 @@ int sc_main(int argc, char* argv[]) {
     // EL PROGRAMA MAESTRO: Bucle Infinito de Conteo (Hello World)
     // =================================================================
     
-    // 1. Inyectamos la ROM (El Codigo)
-    Computer.Ram->memory[0] = (OP_LDA << 4) | 0x06; // 0: LDA 6
-    Computer.Ram->memory[1] = (OP_ADD << 4) | 0x07; // 1: ADD 7
-    Computer.Ram->memory[2] = (OP_OUT << 4) | 0x00; // 2: OUT
-    Computer.Ram->memory[3] = (OP_JMP << 4) | 0x01; // 3: JMP 1 (Vuelve al ADD)
+    // 1. Inyectamos la ROM (El Codigo de 16 bits)
+    Computer.Ram->memory[0] = OP_LDA; Computer.Ram->memory[1] = 6; // 0: LDA 6
+    Computer.Ram->memory[2] = OP_ADD; Computer.Ram->memory[3] = 7; // 2: ADD 7
+    Computer.Ram->memory[4] = OP_OUT; Computer.Ram->memory[5] = 0; // 4: OUT
+    Computer.Ram->memory[6] = OP_JMP; Computer.Ram->memory[7] = 2; // 6: JMP 2 (Vuelve al ADD)
 
-    // Datos
+    // Datos (Ahora en direcciones seguras)
     Computer.Ram->memory[6] = 0x00; // Valor inicial
     Computer.Ram->memory[7] = 0x01; // Incremento (+1)
 

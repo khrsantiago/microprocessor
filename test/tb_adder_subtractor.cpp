@@ -5,7 +5,7 @@ int sc_main(int argc, char* argv[]) {
     sc_report_handler::set_actions(SC_INFO, SC_DO_NOTHING);
 
     // 1. Definición de cables
-    sc_signal<sc_uint<4>> sig_a, sig_b, sig_res;
+    sc_signal<sc_uint<8>> sig_a, sig_b, sig_res;
     sc_signal<bool> sig_op, sig_cout, sig_z, sig_n, sig_o;
 
     // 2. Instancia del componente

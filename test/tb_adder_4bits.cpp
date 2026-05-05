@@ -5,11 +5,14 @@ int sc_main(int argc, char* argv[]) {
     sc_report_handler::set_actions(SC_INFO, SC_DO_NOTHING);
 
     // 1. Cables (Buses de 4 bits y señales de acarreo)
-    sc_signal<sc_uint<4>> sig_a, sig_b, sig_sum;
+    sc_signal<sc_uint<8>> sig_a;
+    sc_signal<sc_uint<8>> sig_b;
+    sc_signal<sc_uint<2>> sig_op;
+    sc_signal<sc_uint<8>> sig_sum;
     sc_signal<bool> sig_cin, sig_cout;
 
-    // 2. Instanciar el Sumador de 4 Bits (Nuestro DUT)
-    Adder4Bits Dut("my_adder_4_bits");
+    // 2. Instanciar el Sumador de 8 Bits (Nuestro DUT)
+    Adder8Bits Dut("my_adder_8_bits");
     Dut.a(sig_a);
     Dut.b(sig_b);
     Dut.cin(sig_cin);

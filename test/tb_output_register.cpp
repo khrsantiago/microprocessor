@@ -11,8 +11,8 @@ int sc_main(int argc, char* argv[]) {
     // 1. Declaracion de Senales (Los cables de prueba)
     sc_clock clk("clk", 10, SC_NS);
     sc_signal<bool> load;
-    sc_signal<sc_lv<4>> data_in;
-    sc_signal<sc_uint<4>> display;
+    sc_signal<sc_lv<8>> data_in;
+    sc_signal<sc_uint<8>> display;
 
     // 2. Instanciacion del Modulo
     OutputRegister OutReg("Output_Register");
@@ -27,11 +27,11 @@ int sc_main(int argc, char* argv[]) {
 
     // Inicializacion
     load.write(0);
-    data_in.write("0000");
+    data_in.write("00000000");
     sc_start(5, SC_NS); // Medio ciclo para alinear el reloj
 
     // --- PRUEBA 1: Aislamiento (El Bus tiene datos, pero Load esta apagado) ---
-    data_in.write("0101"); // Ponemos un 5 en el bus
+    data_in.write("00000101"); // Ponemos un 5 en el bus
     sc_start(10, SC_NS);
     std::cout << std::setw(5) << sc_time_stamp() << " |  " 
               << load.read() << "   |  " << data_in.read() << "   | " 
@@ -45,20 +45,18 @@ int sc_main(int argc, char* argv[]) {
               << display.read() << " (Should be 5)\n";
 
     // --- PRUEBA 3: Resistencia a Alta Impedancia (Z) ---
-    // El bus se desconecta (ZZZZ) pero Load sigue activo por error. 
-    // El registro NO debe actualizarse ni colapsar.
-    data_in.write("ZZZZ");
+    data_in.write("ZZZZZZZZ");
     sc_start(10, SC_NS);
     std::cout << std::setw(5) << sc_time_stamp() << " |  " 
               << load.read() << "   |  " << data_in.read() << "   | " 
               << display.read() << " (Should remain 5)\n";
 
     // --- PRUEBA 4: Nueva Captura ---
-    data_in.write("1111"); // Ponemos un 15 (F)
+    data_in.write("11111111"); // Ponemos un 255 (FF)
     sc_start(10, SC_NS);
     std::cout << std::setw(5) << sc_time_stamp() << " |  " 
               << load.read() << "   |  " << data_in.read() << "   | " 
-              << display.read() << " (Should be 15)\n";
+              << display.read() << " (Should be 255)\n";
 
     std::cout << "\nTest Complete.\n";
     return 0;

@@ -4,7 +4,7 @@
 int sc_main(int argc, char* argv[]) {
     sc_report_handler::set_actions(SC_INFO, SC_DO_NOTHING);
 
-    sc_signal<sc_uint<4>> sig_a, sig_b, sig_res;
+    sc_signal<sc_uint<8>> sig_a, sig_b, sig_res;
     sc_signal<sc_uint<2>> sig_op;
     sc_signal<bool> sig_zero;
 
@@ -35,7 +35,7 @@ int sc_main(int argc, char* argv[]) {
     sig_op.write(2); sig_a.write(12); sig_b.write(10);
     sc_start(10, SC_NS);
     std::cout << sc_time_stamp() << " |    10    |12 |10 ||  " 
-              << sig_res.read() << "  |   " << sig_zero.read() << "    | AND: 1100 & 1010 = 1000 (8)\n";
+              << sig_res.read() << "  |   " << sig_zero.read() << "    | AND: 1100 & 1010 = 1000 (8) [Operando de 8 bits]\n";
 
     // Prueba 11: OR bit a bit (4 y 1)
     sig_op.write(3); sig_a.write(4); sig_b.write(1);

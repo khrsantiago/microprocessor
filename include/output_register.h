@@ -8,10 +8,10 @@
 SC_MODULE(OutputRegister) {
     sc_in<bool> clk;
     sc_in<bool> load;           // Señal de la Unidad de Control (OUT_load)
-    sc_in<sc_lv<4>> data_in;    // Datos del Bus Central
-    sc_out<sc_uint<4>> display; // Salida continua a la pantalla del sistema
+    sc_in<sc_lv<8>> data_in;    // Datos del Bus Central
+    sc_out<sc_uint<8>> display; // Salida continua a la pantalla del sistema
 
-    sc_uint<4> internal_reg;
+    sc_uint<8> internal_reg;
 
     // Proceso para capturar datos en el flanco del reloj
     void update_logic() {
@@ -30,7 +30,7 @@ SC_MODULE(OutputRegister) {
     void monitor_output() {
         std::cout << "\n[DISPLAY] >>> Current Machine Output: " 
                   << display.read() << " (Decimal) | 0x" 
-                  << std::hex << display.read() << " (Hex) <<<\n" << std::dec;
+                  << std::hex << display.read() << " (Hex) <<<\n\n" << std::dec;
     }
 
     SC_CTOR(OutputRegister) {

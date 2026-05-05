@@ -3,38 +3,39 @@
 
 #include <systemc.h>
 
-// Registro de Instrucciones (IR) - 8 bits
+// Registro de Instrucciones (IR) - 16 bits (Dual-stage load)
 SC_MODULE(InstructionRegister) {
     sc_in<bool> clk;              // Reloj del sistema
-    sc_in<bool> ld;               // Load Enable (Habilitador de carga)
+    sc_in<bool> ld_opcode;        // Carga el primer byte (OpCode)
+    sc_in<bool> ld_operand;       // Carga el segundo byte (Operando)
     sc_in<sc_lv<8>> data_in;      // Entrada de 8 bits desde el Bus Central
     
-    // Salidas bifurcadas (Bit-Slicing)
-    sc_out<sc_lv<4>> opcode_out;  // Los 4 bits superiores van a la Unidad de Control
-    sc_out<sc_lv<4>> operand_out; // Los 4 bits inferiores regresan al bus de direcciones
+    // Salidas (ahora de 8 bits cada una)
+    sc_out<sc_lv<8>> opcode_out;  
+    sc_out<sc_lv<8>> operand_out; 
 
     // Memoria interna del registro
-    sc_lv<8> internal_ir;
+    sc_lv<8> internal_opcode;
+    sc_lv<8> internal_operand;
 
     void update_state() {
         if (clk.posedge()) {
-            // Si Load Enable esta activo, atrapamos la instruccion del bus
-            if (ld.read() == 1) {
-                internal_ir = data_in.read();
+            if (ld_opcode.read() == 1) {
+                internal_opcode = data_in.read();
+            }
+            if (ld_operand.read() == 1) {
+                internal_operand = data_in.read();
             }
             
-            // Decodificacion en tiempo real (Bit-Slicing)
-            // Extraemos los bits [7,6,5,4] para el OpCode
-            opcode_out.write(internal_ir.range(7, 4));
-            
-            // Extraemos los bits [3,2,1,0] para la Direccion Operando
-            operand_out.write(internal_ir.range(3, 0));
+            opcode_out.write(internal_opcode);
+            operand_out.write(internal_operand);
         }
     }
 
     SC_CTOR(InstructionRegister) {
-        // Inicializamos con NOP (00000000)
-        internal_ir = "00000000";
+        // Inicializamos
+        internal_opcode = "00000000";
+        internal_operand = "00000000";
         
         SC_METHOD(update_state);
         sensitive << clk.pos();

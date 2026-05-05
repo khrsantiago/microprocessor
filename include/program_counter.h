@@ -3,17 +3,17 @@
 
 #include <systemc.h>
 
-// Program Counter (PC) - 4 bits (Direcciona 16 palabras de RAM)
+// Program Counter (PC) - 8 bits (Direcciona 256 palabras de RAM)
 SC_MODULE(ProgramCounter) {
     sc_in<bool> clk;            // Reloj del sistema
     sc_in<bool> reset;          // Reset asincrono (Vuelve a la instruccion 0)
     sc_in<bool> en;             // Enable (Permite avanzar a la siguiente instruccion)
     sc_in<bool> load;           // Habilitador de salto (Jump Load)
-    sc_in<sc_uint<4>> data_in;  // Nueva direccion proveniente del IR
-    sc_out<sc_uint<4>> q;       // Direccion de salida hacia la RAM
+    sc_in<sc_uint<8>> data_in;  // Nueva direccion proveniente del IR
+    sc_out<sc_uint<8>> q;       // Direccion de salida hacia la RAM
 
     // Registro interno para mantener la cuenta
-    sc_uint<4> count;
+    sc_uint<8> count;
 
     void update_logic() {
         // Prioridad 1: Reset (Vuelve al inicio)

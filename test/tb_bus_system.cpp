@@ -5,11 +5,10 @@ int sc_main(int argc, char* argv[]) {
     sc_report_handler::set_actions(SC_INFO, SC_DO_NOTHING);
 
     // Definicion de cables
-    sc_signal<sc_uint<4>> data_alu, data_ram;
+    sc_signal<sc_uint<8>> data_alu, data_ram;
     sc_signal<bool> en_alu, en_ram;
-    // sc_signal<sc_lv<4>> common_bus; // El Bus compartido
-    // CRITICAL CHANGE: 'sc_signal_rv' is a multi-driver resolved bus
-    sc_signal_rv<4> common_bus;
+    // sc_signal_rv<8> common_bus; // El Bus compartido
+    sc_signal_rv<8> common_bus;
 
     // Instanciamos dos interfaces de bus
     TriStateBuffer BufferAlu("buffer_alu");

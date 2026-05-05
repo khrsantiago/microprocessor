@@ -9,15 +9,15 @@ int sc_main(int argc, char* argv[]) {
     sc_clock clk("sys_clk", 10, SC_NS);
 
     // Cables virtuales
-    sc_signal<sc_uint<4>> sig_d, sig_q;
+    sc_signal<sc_uint<8>> sig_d, sig_q;
 
     // 2. Instanciamos el Registro
-    Register4Bit Dut("Main_Register");
+    Register8Bit Dut("Main_Register");
     Dut.clk(clk); 
     Dut.d(sig_d);
     Dut.q(sig_q);
 
-    std::cout << "Sequential Logic: 4-Bit Register (D Flip-Flop)\n";
+    std::cout << "Sequential Logic: 8-Bit Register (D Flip-Flop)\n";
     std::cout << "Time  | D (In) | Q (Out) | Description\n";
     std::cout << "------------------------------------------\n";
 

@@ -6,7 +6,8 @@ int sc_main(int argc, char* argv[]) {
 
     sc_clock clk("sys_clk", 10, SC_NS);
     sc_signal<bool> sig_ld;
-    sc_signal<sc_uint<4>> sig_d, sig_q;
+    sc_signal<sc_uint<8>> sig_d;
+    sc_signal<sc_uint<8>> sig_q;
 
     Accumulator Acc("register_a");
     Acc.clk(clk); Acc.ld(sig_ld); Acc.d(sig_d); Acc.q(sig_q);
