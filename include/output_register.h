@@ -11,6 +11,7 @@ SC_MODULE(OutputRegister) {
     sc_in<sc_lv<8>> data_in;    // Datos del Bus Central
     sc_out<sc_uint<8>> display; // Salida continua a la pantalla del sistema
 
+    bool enable_console_output;
     sc_uint<8> internal_reg;
 
     // Proceso para capturar datos en el flanco del reloj
@@ -28,6 +29,8 @@ SC_MODULE(OutputRegister) {
 
     // Proceso para imprimir en la terminal cuando cambie el valor visualizado
     void monitor_output() {
+        if (!enable_console_output) return;
+
         int8_t signed_val = (int8_t)display.read().to_uint();
         std::string green = "\033[1;32m";
         std::string reset = "\033[0m";
@@ -48,6 +51,7 @@ SC_MODULE(OutputRegister) {
 
     SC_CTOR(OutputRegister) {
         internal_reg = 0;
+        enable_console_output = true;
         
         SC_METHOD(update_logic);
         sensitive << clk.pos();

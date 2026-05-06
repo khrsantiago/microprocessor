@@ -25,7 +25,7 @@ public:
             {"JZ", OP_JZ},   {"JC", OP_JC}, {"JN", OP_JN},
             {"LD", OP_LD_R0}, {"LDI", OP_LDI_R0}, {"ST", OP_ST_R0},
             {"ADD", OP_ADD_RR}, {"SUB", OP_SUB_RR}, {"OUT", OP_OUT_R0},
-            {"LDA", OP_LD_R0}, {"STA", OP_ST_R0}
+            {"LDA", OP_LD_R0}, {"STA", OP_ST_R0}, {"MOV", OP_MOV}
         };
 
         auto get_reg = [](std::string r) -> int {
@@ -39,8 +39,9 @@ public:
         auto clean = [](std::string s) {
             std::string res;
             for (char c : s) {
-                if (c == ';' || c == '#' || c == ',') break;
-                if (std::isalnum(c) || c == 'x' || c == 'X' || c == '-') res += (char)std::toupper(c);
+                if (c == ';' || c == '#') break;
+                if (c == ',' || c == '[' || c == ']') continue;
+                if (std::isalnum(c) || c == 'x' || c == 'X' || c == '-' || c == '_') res += (char)std::toupper(c);
             }
             return res;
         };
@@ -52,94 +53,125 @@ public:
         };
 
         auto to_num = [](const std::string& s) {
-            try {
-                if (s.empty()) return 0UL;
-                if (s.find("0X") == 0) return std::stoul(s, nullptr, 16);
-                return (unsigned long)std::stol(s, nullptr, 10);
-            } catch (...) { 
-                std::cerr << "CRITICAL: Falla conversion stol/stoul para token: [" << s << "]\n";
-                throw; 
-            }
+            if (s.empty()) return 0UL;
+            if (s.find("0X") == 0) return std::stoul(s, nullptr, 16);
+            return (unsigned long)std::stol(s, nullptr, 10);
         };
 
-        std::string line;
-        int address = 0;
+        std::vector<std::string> lines;
+        std::string raw_line;
+        while (std::getline(file, raw_line)) lines.push_back(raw_line);
 
-        while (std::getline(file, line)) {
+        std::map<std::string, int> labels;
+        int current_addr = 0;
+
+        // Pass 1: Collect Labels
+        for (auto& line : lines) {
             size_t comment_pos = line.find(';');
-            if (comment_pos != std::string::npos) line = line.substr(0, comment_pos);
-            
-            line = trim(line);
-            if (line.empty()) continue;
+            std::string work = (comment_pos != std::string::npos) ? line.substr(0, comment_pos) : line;
+            work = trim(work);
+            if (work.empty()) continue;
 
-            // Manejar Direcciones Explicitadas (ej: "100: 7")
-            size_t colon_pos = line.find(':');
+            size_t colon_pos = work.find(':');
             if (colon_pos != std::string::npos) {
-                std::string addr_str = clean(trim(line.substr(0, colon_pos)));
-                std::string val_str = clean(trim(line.substr(colon_pos + 1)));
-                if (is_num(addr_str) && is_num(val_str)) {
-                    int target = (int)to_num(addr_str);
-                    if (target >= 0 && target < mem_size) memory[target] = to_num(val_str) & 0xFF;
+                std::string label = clean(trim(work.substr(0, colon_pos)));
+                if (is_num(label)) {
+                    current_addr = (int)to_num(label);
+                } else {
+                    labels[label] = current_addr;
                 }
-                continue;
+                std::string rest = trim(work.substr(colon_pos + 1));
+                if (rest.empty()) continue;
+                work = rest;
             }
 
-            if (address >= mem_size) continue;
+            std::stringstream ss(work);
+            std::string mnemonic; ss >> mnemonic;
+            mnemonic = clean(mnemonic);
+            if (opcodes.count(mnemonic)) current_addr += 2;
+            else if (is_num(mnemonic)) current_addr += 1;
+        }
 
-            std::stringstream ss(line);
-            std::string mnemonic;
+        // Pass 2: Assemble
+        current_addr = 0;
+        for (auto& line : lines) {
+            size_t comment_pos = line.find(';');
+            std::string work = (comment_pos != std::string::npos) ? line.substr(0, comment_pos) : line;
+            work = trim(work);
+            if (work.empty()) continue;
+
+            size_t colon_pos = work.find(':');
+            if (colon_pos != std::string::npos) {
+                std::string label = clean(trim(work.substr(0, colon_pos)));
+                if (is_num(label)) current_addr = (int)to_num(label);
+                work = trim(work.substr(colon_pos + 1));
+                if (work.empty()) continue;
+            }
+
+            std::stringstream ss(work);
+            std::string mnemonic, t1, t2;
             if (!(ss >> mnemonic)) continue;
             mnemonic = clean(mnemonic);
-            if (mnemonic.empty()) continue;
 
             if (opcodes.count(mnemonic)) {
                 unsigned int op = opcodes[mnemonic];
                 unsigned int operand = 0;
-                std::string t1, t2;
-
+                
                 if (mnemonic == "LD" || mnemonic == "LDI" || mnemonic == "OUT" || mnemonic == "LDA") {
                     if (ss >> t1) {
-                        t1 = clean(t1);
-                        int r = get_reg(t1);
+                        t1 = clean(t1); int r = get_reg(t1);
                         if (r != -1) {
-                            if (mnemonic == "LD" || mnemonic == "LDA") op = OP_LD_R0 + r;
-                            else if (mnemonic == "LDI") op = OP_LDI_R0 + r;
-                            else if (mnemonic == "OUT") op = OP_OUT_R0 + r;
-                            
-                            if (mnemonic != "OUT" && ss >> t2) {
-                                t2 = clean(t2);
-                                if (is_num(t2)) operand = to_num(t2);
-                            }
-                        } else if (is_num(t1)) {
-                            operand = to_num(t1);
+                            if (mnemonic == "LD" || mnemonic == "LDA") {
+                                op = OP_LD_R0 + r;
+                                if (ss >> t2) {
+                                    t2 = clean(t2); int r_src = get_reg(t2);
+                                    if (r_src != -1) { op = OP_LD_IND + r; operand = r_src; }
+                                    else if (labels.count(t2)) operand = labels[t2];
+                                    else if (is_num(t2)) operand = to_num(t2);
+                                }
+                            } else if (mnemonic == "LDI") {
+                                op = OP_LDI_R0 + r;
+                                if (ss >> t2) {
+                                    t2 = clean(t2);
+                                    if (labels.count(t2)) operand = labels[t2];
+                                    else if (is_num(t2)) operand = to_num(t2);
+                                }
+                            } else if (mnemonic == "OUT") op = OP_OUT_R0 + r;
+                        } else {
+                            if (labels.count(t1)) operand = labels[t1];
+                            else if (is_num(t1)) operand = to_num(t1);
                         }
                     }
-                }
-                else if (mnemonic == "ST" || mnemonic == "STA") {
+                } else if (mnemonic == "ST" || mnemonic == "STA") {
                     if (ss >> t1 >> t2) {
                         t1 = clean(t1); t2 = clean(t2);
                         int r1 = get_reg(t1), r2 = get_reg(t2);
-                        if (r1 != -1) { op = OP_ST_R0 + r1; if (is_num(t2)) operand = to_num(t2); }
-                        else { if (r2 != -1) op = OP_ST_R0 + r2; if (is_num(t1)) operand = to_num(t1); }
+                        if (r1 != -1 && r2 != -1) { op = OP_ST_IND + r1; operand = r2; }
+                        else if (is_num(t1) && r2 != -1) { op = OP_ST_R0 + r2; operand = to_num(t1); }
+                        else if (labels.count(t1) && r2 != -1) { op = OP_ST_R0 + r2; operand = labels[t1]; }
+                        else if (r1 != -1 && is_num(t2)) { op = OP_ST_R0 + r1; operand = to_num(t2); }
+                        else if (r1 != -1 && labels.count(t2)) { op = OP_ST_R0 + r1; operand = labels[t2]; }
                     }
-                }
-                else if (mnemonic == "ADD" || mnemonic == "SUB") {
+                } else if (mnemonic == "ADD" || mnemonic == "SUB" || mnemonic == "MOV") {
                     if (ss >> t1 >> t2) {
                         t1 = clean(t1); t2 = clean(t2);
                         int rd = get_reg(t1), rs = get_reg(t2);
+                        if (mnemonic == "MOV") op = OP_MOV;
                         if (rd != -1 && rs != -1) operand = (rd << 4) | (rs & 0x0F);
-                        else if (rd != -1) operand = (rd << 4);
+                    }
+                } else if (mnemonic == "JMP" || mnemonic == "JZ" || mnemonic == "JC" || mnemonic == "JN") {
+                    if (ss >> t1) {
+                        t1 = clean(t1);
+                        if (labels.count(t1)) operand = labels[t1];
+                        else if (is_num(t1)) operand = to_num(t1);
                     }
                 }
-                else if (mnemonic == "JMP" || mnemonic == "JZ" || mnemonic == "JC" || mnemonic == "JN") {
-                    if (ss >> t1) { t1 = clean(t1); if (is_num(t1)) operand = to_num(t1); }
+                if (current_addr < mem_size - 1) {
+                    memory[current_addr] = op & 0xFF; memory[current_addr + 1] = operand & 0xFF;
+                    current_addr += 2;
                 }
-
-                memory[address] = op & 0xFF;
-                memory[address + 1] = operand & 0xFF;
-                address += 2;
             } else if (is_num(mnemonic)) {
-                memory[address++] = to_num(mnemonic) & 0xFF;
+                if (current_addr < mem_size) memory[current_addr++] = to_num(mnemonic) & 0xFF;
             }
         }
         return true;

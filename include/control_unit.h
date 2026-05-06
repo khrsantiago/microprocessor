@@ -34,6 +34,7 @@ SC_MODULE(ControlUnit) {
 
     // WB Stage controls
     sc_out<bool> out_load;
+    sc_out<bool> is_indirect; // New: Signal for EX stage to use register as address
 
     // IF Stage branch control
     sc_out<bool> pc_load;
@@ -43,7 +44,7 @@ SC_MODULE(ControlUnit) {
         rf_we.write(0); rf_idx_w.write(0); rf_idx_r1.write(0); rf_idx_r2.write(0);
         rf_out_en.write(0); alu_op.write(0); alu_en.write(0);
         ram_we.write(0); is_mem_access.write(0); is_store.write(0);
-        out_load.write(0); pc_load.write(0);
+        out_load.write(0); pc_load.write(0); is_indirect.write(0);
 
         sc_uint<8> op = opcode.read().to_uint();
         sc_uint<8> opr = operand.read().to_uint();
@@ -67,17 +68,39 @@ SC_MODULE(ControlUnit) {
             ram_we.write(1);
             is_store.write(1);
         }
-        // 4. Aritmética Registro-Registro (ADD Rd, Rs / SUB Rd, Rs)
-        else if (op == OP_ADD_RR || op == OP_SUB_RR) {
-            rf_idx_r1.write((opr >> 4) & 0x03); // Rd (Source 1)
-            rf_idx_r2.write(opr & 0x03);        // Rs (Source 2)
+        // 4. Manejo de LOAD INDIRECTO (LD Rd, [Rs])
+        else if ((op & 0xFC) == 0x40) {
+            rf_idx_w.write(op & 0x03);   // Rd is destination
+            rf_idx_r2.write(opr & 0x03); // Rs is address source
+            rf_we.write(1);
+            is_mem_access.write(1);
+            is_indirect.write(1);
+        }
+        // 5. Manejo de STORE INDIRECTO (ST [Rd], Rs)
+        else if ((op & 0xFC) == 0x50) {
+            rf_idx_r1.write(opr & 0x03); // Rs is data source
+            rf_idx_r2.write(op & 0x03);  // Rd is address source
+            rf_out_en.write(1);
+            ram_we.write(1);
+            is_store.write(1);
+            is_indirect.write(1);
+        }
+        // 6. Aritmética Registro-Registro (ADD Rd, Rs / SUB Rd, Rs / MOV Rd, Rs)
+        else if (op == OP_ADD_RR || op == OP_SUB_RR || op == OP_MOV) {
             rf_idx_w.write((opr >> 4) & 0x03);  // Rd (Destination)
             rf_we.write(1);
             rf_out_en.write(1);
-            alu_en.write(1);
-            alu_op.write((op == OP_ADD_RR) ? 0 : 1);
+            // Correction: For MOV Rd, Rs, we read Rs into R1 and then write R1 to Rd in WB
+            if (op == OP_MOV) {
+                rf_idx_r1.write(opr & 0x03);        // Rs is the source
+            } else {
+                rf_idx_r1.write((opr >> 4) & 0x03); // Rd is source1
+                rf_idx_r2.write(opr & 0x03);        // Rs is source2
+                alu_en.write(1);
+                alu_op.write((op == OP_ADD_RR) ? 0 : 1);
+            }
         }
-        // 5. Control de Saltos
+        // 7. Control de Saltos
         else if (op == OP_JMP) {
             pc_load.write(1);
         } else if (op == OP_JZ) {

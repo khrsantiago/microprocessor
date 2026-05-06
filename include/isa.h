@@ -19,6 +19,7 @@ enum OpCode {
 
     // Register-Register Arithmetic (Rd and Rs encoded in operand byte)
     OP_ADD_RR = 0x60, // ADD Rd, Rs -> Operand: [Rd:4][Rs:4]
+    OP_MOV    = 0x61, // MOV Rd, Rs -> Operand: [Rd:4][Rs:4]
     OP_SUB_RR = 0x70, // SUB Rd, Rs -> Operand: [Rd:4][Rs:4]
 
     // Control & IO
@@ -27,6 +28,10 @@ enum OpCode {
     OP_JC  = 0xA0, // JC Addr
     OP_JN  = 0xB0, // JN Addr (Jump if Negative)
     
+    // Indirect Memory (Rd and Rs encoded like LD/ST but uses different prefix)
+    OP_LD_IND = 0x40, // LD Rd, [Rs] -> Low 2 bits of opcode: Rd, Operand: Rs
+    OP_ST_IND = 0x50, // ST [Rd], Rs -> Low 2 bits of opcode: Rd, Operand: Rs
+
     OP_OUT_R0 = 0xE0, OP_OUT_R1 = 0xE1, OP_OUT_R2 = 0xE2, OP_OUT_R3 = 0xE3, // OUT Rs
     OP_HLT = 0xFF  // Halt
 };

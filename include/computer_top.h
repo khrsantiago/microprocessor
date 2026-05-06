@@ -43,6 +43,7 @@ SC_MODULE(ComputerTop) {
     sc_signal<bool> s_id_is_store;
     sc_signal<bool> s_id_out_load;
     sc_signal<bool> s_id_pc_load;
+    sc_signal<bool> s_id_is_indirect; // New
 
     sc_signal<bool> s_id_rf_we;
     sc_signal<sc_uint<2>> s_id_rf_idx_w;
@@ -69,6 +70,7 @@ SC_MODULE(ComputerTop) {
     sc_signal<sc_uint<8>> s_ex_operand;
     sc_signal<sc_uint<8>> s_ex_rf_data1;
     sc_signal<sc_uint<8>> s_ex_rf_data2;
+    sc_signal<bool> s_ex_is_indirect; // New
     sc_signal<sc_uint<8>> s_ex_opcode;
     sc_signal<sc_uint<2>> s_ex_rf_idx_r1;
     sc_signal<sc_uint<2>> s_ex_rf_idx_r2;
@@ -83,6 +85,7 @@ SC_MODULE(ComputerTop) {
     sc_signal<bool> s_ex_alu_carry;
     sc_signal<bool> s_ex_alu_negative;
     sc_signal<bool> s_ex_alu_overflow;
+    sc_signal<sc_uint<8>> s_ex_ram_addr; // New: Selected address for RAM
     sc_signal<sc_uint<8>> s_ram_out;
 
     // --- EX/WB REG ---
@@ -126,63 +129,57 @@ SC_MODULE(ComputerTop) {
     sc_signal<sc_uint<8>> s_ex_opcode_dbg, s_ex_operand_dbg;
     sc_signal<sc_uint<8>> s_wb_opcode_dbg, s_wb_operand_dbg;
 
-    void pipeline_glue() {
-        s_true.write(1); s_false.write(0);
-
-        s_pc_en.write(!s_id_pc_load.read());
-        s_if_flush.write(s_id_pc_load.read());
-
-        sc_uint<16> inst = s_rom_data.read();
-        s_rom_opcode.write(inst.range(15, 8).to_uint());
-        s_rom_operand.write(inst.range(7, 0).to_uint());
-        
-        sc_lv<8> op_raw = s_id_opcode_raw.read();
-        sc_lv<8> opr_raw = s_id_operand_raw.read();
-        if (op_raw.is_01()) s_id_opcode.write(op_raw.to_uint());
-        if (opr_raw.is_01()) s_id_operand.write(opr_raw.to_uint());
-
-        // --- WB STAGE DATA MUX (Calculate first for forwarding) ---
+    void wb_process() {
         sc_uint<8> wb_data = 0;
-        sc_uint<8> op_wb = s_wb_opcode.read();
+        sc_uint<8> op_wb = s_wb_opcode.read().to_uint();
         if ((op_wb & 0xFC) == 0x20) { // LDI
             wb_data = s_wb_operand.read();
-        } else if ((op_wb & 0xFC) == 0x10) { // LD
+        } else if ((op_wb & 0xFC) == 0x10 || (op_wb & 0xFC) == 0x40) { // LD or LD_IND
             wb_data = s_wb_ram_data.read();
+        } else if (op_wb == OP_MOV) { // MOV
+            wb_data = s_wb_rf_data1.read();
         } else {
             wb_data = s_wb_alu_result.read(); // ADD/SUB
         }
         s_wb_rf_data_in.write(wb_data);
-        
-        // --- EX STAGE DATA MUX (Calculate for EX→ID forwarding) ---
-        sc_uint<8> ex_data = 0;
-        sc_uint<8> op_ex_fwd = s_ex_opcode.read();
-        if ((op_ex_fwd & 0xFC) == 0x20) { // LDI in EX: data = operand
-            ex_data = s_ex_operand.read();
-        } else if ((op_ex_fwd & 0xFC) == 0x10) { // LD in EX: data = RAM output
-            ex_data = s_ram_out.read();
-        } else { // ADD/SUB in EX: data = ALU result
-            ex_data = s_ex_alu_result.read();
-        }
+    }
 
-        // --- ID STAGE FORWARDING (WB→ID then EX→ID, EX has priority) ---
+    void id_process() {
         sc_uint<8> id1 = s_rf_data1.read();
         sc_uint<8> id2 = s_rf_data2.read();
-        // Lower priority: WB→ID
+        sc_uint<8> wb_data = s_wb_rf_data_in.read();
+
+        // WB->ID Forwarding
         if (s_wb_rf_we.read()) {
             if (s_wb_rf_idx_w.read() == s_id_rf_idx_r1.read()) id1 = wb_data;
             if (s_wb_rf_idx_w.read() == s_id_rf_idx_r2.read()) id2 = wb_data;
         }
-        // Higher priority: EX→ID (overrides WB if both match)
+        
+        // EX->ID Forwarding (Only for non-memory or stable EX data)
+        sc_uint<8> ex_data_val = s_ex_data_fwd.read();
         if (s_ex_rf_we.read()) {
-            if (s_ex_rf_idx_w.read() == s_id_rf_idx_r1.read()) id1 = ex_data;
-            if (s_ex_rf_idx_w.read() == s_id_rf_idx_r2.read()) id2 = ex_data;
+            if (s_ex_rf_idx_w.read() == s_id_rf_idx_r1.read()) id1 = ex_data_val;
+            if (s_ex_rf_idx_w.read() == s_id_rf_idx_r2.read()) id2 = ex_data_val;
         }
+        
         s_rf_data1_fwd.write(id1);
         s_rf_data2_fwd.write(id2);
 
-        // --- EX STAGE DATA FORWARDING (WB→EX) ---
+        sc_lv<8> op_raw = s_id_opcode_raw.read();
+        sc_lv<8> opr_raw = s_id_operand_raw.read();
+        if (op_raw.is_01()) s_id_opcode.write(op_raw.to_uint());
+        if (opr_raw.is_01()) s_id_operand.write(opr_raw.to_uint());
+        
+        s_pc_en.write(!s_id_pc_load.read());
+        s_if_flush.write(s_id_pc_load.read());
+    }
+
+    void ex_process() {
         sc_uint<8> val1 = s_ex_rf_data1.read();
         sc_uint<8> val2 = s_ex_rf_data2.read();
+        sc_uint<8> wb_data = s_wb_rf_data_in.read();
+
+        // WB->EX Forwarding
         if (s_wb_rf_we.read()) {
             if (s_wb_rf_idx_w.read() == s_ex_rf_idx_r1.read()) val1 = wb_data;
             if (s_wb_rf_idx_w.read() == s_ex_rf_idx_r2.read()) val2 = wb_data;
@@ -190,6 +187,37 @@ SC_MODULE(ComputerTop) {
         s_ex_rf_data1_fwd.write(val1);
         s_ex_rf_data2_fwd.write(val2);
 
+        sc_uint<8> op_ex = s_ex_opcode.read().to_uint();
+        if (op_ex == OP_ADD_RR || op_ex == OP_SUB_RR) {
+            s_ex_alu_b_in.write(val2);
+        } else {
+            s_ex_alu_b_in.write(s_ram_out.read()); // This is safe because s_ram_out is a port
+        }
+
+        if (s_ex_is_indirect.read()) {
+            s_ex_ram_addr.write(val2);
+        } else {
+            s_ex_ram_addr.write(s_ex_operand.read());
+        }
+
+        // Calculate EX data for EX->ID forwarding 
+        // LDI result is imm, ADD/SUB/MOV is alu_result. 
+        // Direct LD is safe to forward since its address is constant.
+        sc_uint<8> ex_data = 0;
+        if ((op_ex & 0xFC) == 0x20) ex_data = s_ex_operand.read();
+        else if ((op_ex & 0xFC) == 0x10) ex_data = s_ram_out.read(); // Regular LD
+        else if (op_ex == OP_MOV) ex_data = val1;
+        else ex_data = s_ex_alu_result.read();
+        s_ex_data_fwd.write(ex_data);
+    }
+
+    void pipeline_glue() {
+        s_true.write(1); s_false.write(0);
+
+        sc_uint<16> inst = s_rom_data.read();
+        s_rom_opcode.write(inst.range(15, 8).to_uint());
+        s_rom_operand.write(inst.range(7, 0).to_uint());
+        
         bool fz = s_flags_z.read();
         bool fc = s_flags_c.read();
         bool fn = s_flags_n.read();
@@ -205,23 +233,15 @@ SC_MODULE(ComputerTop) {
         s_id_fwd_n.write(fn);
         s_id_fwd_o.write(fo);
 
-        // ALU B Input Mux
-        sc_uint<8> op_ex = s_ex_opcode.read();
-        if (op_ex == OP_ADD_RR || op_ex == OP_SUB_RR) {
-            s_ex_alu_b_in.write(val2);
-        } else {
-            s_ex_alu_b_in.write(s_ram_out.read()); // RAM access (LD)
-        }
-
         // Trace signals
         s_pc_to_bus.write(s_id_pc.read());
         s_ir_opcode.write(s_id_opcode_raw.read());
         s_ir_operand.write(s_id_operand_raw.read());
-        s_mar_to_ram.write(s_ex_operand.read());
+        s_mar_to_ram.write(s_ex_ram_addr.read());
         s_ram_to_bus.write(s_ram_out.read());
         common_bus.write(s_wb_rf_data_in.read());
-        s_wb_out_data.write(s_wb_rf_data1.read()); // Convert to sc_lv for OutputRegister
-        s_rega_out.write(s_rf_r0.read()); // For display compatibility
+        s_wb_out_data.write(s_wb_rf_data1.read());
+        s_rega_out.write(s_rf_r0.read());
 
         s_if_pc_dbg.write(s_pc_out.read());
         s_id_pc_dbg.write(s_id_pc.read());
@@ -239,18 +259,27 @@ SC_MODULE(ComputerTop) {
     sc_signal<sc_uint<8>> s_wb_pc_dbg_internal;
     sc_signal<sc_uint<8>> s_rega_out; // compatibility
 
+    sc_signal<sc_uint<8>> s_ex_data_fwd; // New intermediate signal to break loop
+
     SC_CTOR(ComputerTop) {
+        SC_METHOD(wb_process);
+        sensitive << s_wb_opcode << s_wb_operand << s_wb_ram_data << s_wb_alu_result << s_wb_rf_data1;
+
+        SC_METHOD(id_process);
+        sensitive << s_rf_data1 << s_rf_data2 << s_wb_rf_we << s_wb_rf_idx_w << s_wb_rf_data_in 
+                  << s_ex_rf_we << s_ex_rf_idx_w << s_ex_data_fwd << s_id_rf_idx_r1 << s_id_rf_idx_r2
+                  << s_id_opcode_raw << s_id_operand_raw << s_id_pc_load;
+
+        SC_METHOD(ex_process);
+        sensitive << s_ex_rf_data1 << s_ex_rf_data2 << s_wb_rf_we << s_wb_rf_idx_w << s_wb_rf_data_in
+                  << s_ex_rf_idx_r1 << s_ex_rf_idx_r2 << s_ex_opcode << s_ex_operand << s_ram_out
+                  << s_ex_is_indirect << s_ex_alu_result;
+
         SC_METHOD(pipeline_glue);
-        sensitive << clk << s_rom_data << s_id_pc_load << s_id_opcode_raw << s_id_operand_raw 
-                  << s_id_pc << s_ex_opcode << s_ex_operand << s_ex_rf_data1 << s_ex_rf_data2
-                  << s_ex_rf_idx_r1 << s_ex_rf_idx_r2 << s_wb_rf_data_in << s_rf_data1 << s_rf_data2
-                  << s_id_rf_idx_r1 << s_id_rf_idx_r2
-                  << s_ram_out << s_wb_opcode << s_wb_operand << s_wb_ram_data 
-                  << s_wb_rf_data1 << s_wb_alu_result << s_wb_rf_we << s_wb_rf_idx_w
-                  << s_pc_out << s_ex_pc_dbg_internal << s_wb_pc_dbg_internal
+        sensitive << clk << s_rom_data << s_id_pc << s_ex_opcode << s_ex_operand 
+                  << s_ex_pc_dbg_internal << s_wb_pc_dbg_internal
                   << s_ex_alu_zero << s_ex_alu_carry << s_ex_alu_negative << s_ex_alu_en
-                  << s_ex_alu_result << s_ex_rf_we << s_ex_rf_idx_w  // EX→ID forwarding
-                  << s_flags_z << s_flags_c << s_flags_n;
+                  << s_flags_z << s_flags_c << s_flags_n << s_ex_ram_addr;
 
         Pc = new ProgramCounter("PC");
         Pc->clk(clk); Pc->reset(reset); Pc->en(s_pc_en); Pc->load(s_id_pc_load); Pc->data_in(s_id_operand); Pc->q(s_pc_out);
@@ -270,6 +299,7 @@ SC_MODULE(ComputerTop) {
         Cu->rf_out_en(s_id_rf_out_en);
         Cu->alu_op(s_id_alu_op); Cu->alu_en(s_id_alu_en); Cu->ram_we(s_id_ram_we); Cu->is_mem_access(s_id_is_mem_access);
         Cu->is_store(s_id_is_store); Cu->out_load(s_id_out_load); Cu->pc_load(s_id_pc_load);
+        Cu->is_indirect(s_id_is_indirect);
 
         Rf = new RegisterFile("RF");
         Rf->clk(clk); Rf->reset(reset);
@@ -293,9 +323,10 @@ SC_MODULE(ComputerTop) {
         IdEx->out_load_out(s_ex_out_load); IdEx->ram_we_out(s_ex_ram_we);
         IdEx->operand_out(s_ex_operand); IdEx->rf_data1_out(s_ex_rf_data1); IdEx->rf_data2_out(s_ex_rf_data2);
         IdEx->opcode_out(s_ex_opcode); IdEx->pc_out(s_ex_pc_dbg_internal);
+        IdEx->is_indirect_in(s_id_is_indirect); IdEx->is_indirect_out(s_ex_is_indirect);
 
         DataRam = new RAM("DataRam");
-        DataRam->clk(clk); DataRam->we(s_ex_ram_we); DataRam->addr(s_ex_operand);
+        DataRam->clk(clk); DataRam->we(s_ex_ram_we); DataRam->addr(s_ex_ram_addr);
         DataRam->data_in(s_ex_rf_data1_fwd); DataRam->data_out(s_ram_out);
 
         Alu = new ALU("ALU");

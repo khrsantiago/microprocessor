@@ -23,10 +23,13 @@ int sc_main(int argc, char* argv[]) {
     }
 
     int delay_ms = 100; // FPS (100ms default)
+    bool is_manual_mode = false;
     for (int i = 2; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg.find("--delay=") == 0) {
             delay_ms = std::stoi(arg.substr(8));
+        } else if (arg == "--manual") {
+            is_manual_mode = true;
         }
     }
 
@@ -38,6 +41,7 @@ int sc_main(int argc, char* argv[]) {
     ComputerTop Computer("KHR8_COMPUTER");
     Computer.clk(sys_clk);
     Computer.reset(reset_sg);
+    Computer.OutReg->enable_console_output = false;
 
     RAM* ram = Computer.DataRam;
 
@@ -73,11 +77,16 @@ int sc_main(int argc, char* argv[]) {
         // Reset flag at the start of each new instruction fetch (T1)
         if (Computer.s_pc_en.read() == 1) rendered_this_out = false;
 
+        // DEBUG: Uncomment to see all opcodes
+        // if (opcode != 0) std::cout << "Cycle " << i << " Opcode: 0x" << std::hex << (int)opcode << std::dec << std::endl;
+
         // Evento VSYNC dedicado: Si dispara instrucción OUT (R0-R3: 0xE0-0xE3)
         if ((opcode >= 0xE0 && opcode <= 0xE3) && !rendered_this_out) {
             rendered_this_out = true;
             frame++;
-            std::cout << "\033[2J\033[H"; // Clear screen and set cursor to Top-Left
+            
+            // Move cursor to top instead of clearing whole screen to avoid flickering
+            std::cout << "\033[H"; 
             
             std::cout << IsAHelper::CYAN << "===============================================================" << IsAHelper::RESET << std::endl;
             std::cout << IsAHelper::BOLD << "           CONWAY'S GAME OF LIFE (5x5 VRAM ENGINE)" << IsAHelper::RESET << std::endl;
@@ -92,11 +101,14 @@ int sc_main(int argc, char* argv[]) {
                 }
                 std::cout << "|" << std::endl;
             }
-            std::cout << IsAHelper::CYAN << "\n===============================================================" << IsAHelper::RESET << std::endl;
-            std::cout << IsAHelper::YELLOW << "  Frame: " << frame << IsAHelper::RESET << std::endl;
+            std::cout << IsAHelper::CYAN << "===============================================================" << IsAHelper::RESET << std::endl;
+            std::cout << IsAHelper::YELLOW << "  Frame: " << std::setw(5) << frame << " | Simulation Cycle: " << i << IsAHelper::RESET << std::endl;
 
             // Retraso interactivo visual del fotograma (FPS Cap)
-            if (delay_ms > 0) {
+            if (is_manual_mode) {
+                std::cout << IsAHelper::CYAN << "  Presiona [ENTER] para avanzar al siguiente frame..." << IsAHelper::RESET;
+                std::cin.get();
+            } else if (delay_ms > 0) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
             }
         }

@@ -75,6 +75,7 @@ SC_MODULE(ID_EX_Reg) {
     sc_out<sc_uint<2>> rf_idx_r2_out;
     sc_in<bool> out_load_ctrl;
     sc_in<bool> ram_we_ctrl; // Memory Write
+    sc_in<bool> is_indirect_in; // New
 
     // Data paths
     sc_in<sc_uint<8>> operand_in;
@@ -88,6 +89,7 @@ SC_MODULE(ID_EX_Reg) {
     sc_out<sc_uint<2>> rf_idx_w_out;
     sc_out<bool> out_load_out;
     sc_out<bool> ram_we_out;
+    sc_out<bool> is_indirect_out; // New
     
     sc_out<sc_uint<8>> operand_out;
     sc_out<sc_uint<8>> rf_data1_out;
@@ -100,7 +102,7 @@ SC_MODULE(ID_EX_Reg) {
 
     // Internal states
     sc_uint<2> alu_op_val;
-    bool b_in_val, rf_we_val, out_load_val, ram_we_val;
+    bool b_in_val, rf_we_val, out_load_val, ram_we_val, is_indirect_val;
     sc_uint<2> rf_idx_w_val, rf_idx_r1_val, rf_idx_r2_val;
     sc_uint<8> operand_val, rf_data1_val, rf_data2_val, opcode_val, pc_val;
 
@@ -108,7 +110,7 @@ SC_MODULE(ID_EX_Reg) {
         if (reset.read() || flush.read()) {
             alu_op_val = 0;
             b_in_val = 0; rf_we_val = 0; out_load_val = 0; ram_we_val = 0; rf_idx_w_val = 0;
-            operand_val = 0; rf_data1_val = 0; rf_data2_val = 0; opcode_val = 0;
+            operand_val = 0; rf_data1_val = 0; rf_data2_val = 0; opcode_val = 0; is_indirect_val = 0;
         } else if (enable.read()) {
             alu_op_val = alu_op_in.read();
             b_in_val = b_in_ctrl.read();
@@ -118,6 +120,7 @@ SC_MODULE(ID_EX_Reg) {
             rf_idx_r2_val = rf_idx_r2_in.read();
             out_load_val = out_load_ctrl.read();
             ram_we_val = ram_we_ctrl.read();
+            is_indirect_val = is_indirect_in.read();
             
             operand_val = operand_in.read();
             rf_data1_val = rf_data1_in.read();
@@ -134,6 +137,7 @@ SC_MODULE(ID_EX_Reg) {
         rf_idx_r2_out.write(rf_idx_r2_val);
         out_load_out.write(out_load_val);
         ram_we_out.write(ram_we_val);
+        is_indirect_out.write(is_indirect_val);
 
         operand_out.write(operand_val);
         rf_data1_out.write(rf_data1_val);
@@ -147,7 +151,7 @@ SC_MODULE(ID_EX_Reg) {
         sensitive << clk.pos();
         alu_op_val = 0;
         b_in_val = 0; rf_we_val = 0; out_load_val = 0; ram_we_val = 0; rf_idx_w_val = 0;
-        operand_val = 0; rf_data1_val = 0; rf_data2_val = 0; opcode_val = 0; pc_val = 0;
+        operand_val = 0; rf_data1_val = 0; rf_data2_val = 0; opcode_val = 0; pc_val = 0; is_indirect_val = 0;
     }
 };
 

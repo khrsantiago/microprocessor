@@ -30,48 +30,41 @@
 254: 0
 255: 0
 
-; Dir 0: Muestra el patron actual
-OUT
-; Dir 2: Ahora invertimos: leemos cada celda, la intercambiamos
+0:
+OUT R0
 
+LOOP:
 ; ======= FRAME A -> FRAME B (horizontal -> vertical) =======
-; Borramos fila 1 (237,238,239) y pintamos columna 1 (233,238,243)
-; Pero para hacerlo genéricamente con RegX, simplemente
-; recalculamos las 3 celdas de la fila y las 3 de la columna
-
 ; Borrar 237
-LDI 0
-STA 237
-; Dir 6
-STA 239
-; Dir 8: Pintar columna central (233, 238, 243)
-LDI 1
-; Dir 10
-STA 233
-; Dir 12: 238 ya tiene 1 (centro)
-STA 243
-; Dir 14
-OUT
-; Dir 16: Pausa (NOP ayuda a espaciar los OUTs)
+LDI R0, 0
+STA 237, R0
+STA 239, R0
+
+; Pintar columna central (233, 238, 243)
+LDI R0, 1
+STA 233, R0
+STA 243, R0
+
+NOP
+NOP
+OUT R0
 NOP
 
 ; ======= FRAME B -> FRAME A (vertical -> horizontal) =======
-; Dir 18: Borrar columna
-LDI 0
-; Dir 20
-STA 233
-; Dir 22
-STA 243
-; Dir 24: Pintar fila
-LDI 1
-; Dir 26
-STA 237
-; Dir 28
-STA 239
-; Dir 30
-OUT
-; Dir 32
+; Borrar columna
+LDI R0, 0
+STA 233, R0
+STA 243, R0
+
+; Pintar fila
+LDI R0, 1
+STA 237, R0
+STA 239, R0
+
+NOP
+NOP
+OUT R0
 NOP
 
-; Dir 34: Loop infinito
-JMP 2
+; Loop infinito
+JMP LOOP
