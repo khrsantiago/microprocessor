@@ -1,4 +1,4 @@
-; conway.asm - Conway's Game of Life (SAP-1, 8-Bit)
+; conway.asm - Conway's Game of Life (KHR-8, 8-Bit)
 ;
 ; MEMORY MAP:
 ;   0-119   : Código (instrucciones del programa)

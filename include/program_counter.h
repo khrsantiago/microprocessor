@@ -28,7 +28,7 @@ SC_MODULE(ProgramCounter) {
             } 
             // Prioridad 3: Incremento secuencial
             else if (en.read() == true) {
-                count++;
+                count = count + 2;
             }
         }
         q.write(count);

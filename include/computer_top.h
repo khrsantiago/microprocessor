@@ -3,276 +3,335 @@
 
 #include <systemc.h>
 
-// Incluimos todos los modulos construidos anteriormente
 #include "program_counter.h"
-#include "mar.h"
+#include "rom.h"
 #include "ram.h"
-#include "instruction_register.h"
-#include "accumulator.h"
+#include "register_file.h"
 #include "alu.h"
 #include "control_unit.h"
-#include "tri_state_buffer.h"
 #include "output_register.h"
+#include "pipeline_registers.h"
 
 SC_MODULE(ComputerTop) {
-    // Puertos externos (Reloj y Reset maestro)
     sc_in<bool> clk;
     sc_in<bool> reset;
 
-    // --- EL SISTEMA NERVIOSO (Senales Internas) ---
+    // --- PIPELINE CONSTANTS ---
+    sc_signal<bool> s_true;
+    sc_signal<bool> s_false;
 
-    // 1. El Bus Central (Resolved para evitar conflictos)
-    sc_signal_rv<8> common_bus;
+    // --- IF STAGE ---
+    sc_signal<bool> s_pc_en;
+    sc_signal<sc_uint<8>> s_pc_out;
+    sc_signal<sc_uint<16>> s_rom_data;
+    sc_signal<bool> s_if_flush;
+    sc_signal<sc_lv<8>> s_rom_opcode;
+    sc_signal<sc_lv<8>> s_rom_operand;
 
-    // 2. Senales de Control (Emitidas por la CU)
-    sc_signal<bool> s_pc_out, s_pc_inc, s_mar_in, s_ram_out, s_ir_ld_opcode, s_ir_ld_operand, s_ir_out, s_a_in;
-    sc_signal<bool> s_pc_load;
+    // --- IF/ID REG ---
+    sc_signal<sc_uint<8>> s_id_pc;
+    sc_signal<sc_lv<8>> s_id_opcode_raw;
+    sc_signal<sc_lv<8>> s_id_operand_raw;
+    sc_signal<sc_uint<8>> s_id_opcode;
+    sc_signal<sc_uint<8>> s_id_operand;
 
-    sc_signal<bool> s_ram_we; // Tierra (siempre 0 para lectura)
-    sc_signal<bool> s_alu_neg_flag, s_alu_ovf_flag;
-    sc_signal<bool> s_alu_zero_dummy;
-    sc_signal<bool> s_regb_zero_dummy;
-    sc_signal<bool> s_alu_zero_flag;
-    sc_signal<bool> s_alu_carry_comb;
-    sc_signal<bool> s_latched_carry;
-    sc_signal<bool> s_false_wire;
-    sc_signal<bool> s_regb_carry_dummy;
-    sc_signal<bool> s_regx_zero_dummy;
-    sc_signal<bool> s_regx_carry_dummy;
+    // --- ID STAGE (GPR) ---
+    sc_signal<sc_uint<2>> s_id_alu_op;
+    sc_signal<bool> s_id_alu_en;
+    sc_signal<bool> s_id_ram_we;
+    sc_signal<bool> s_id_is_mem_access;
+    sc_signal<bool> s_id_is_store;
+    sc_signal<bool> s_id_out_load;
+    sc_signal<bool> s_id_pc_load;
 
-    sc_signal<bool> s_a_out;
-    sc_signal<bool> s_out_load;
+    sc_signal<bool> s_id_rf_we;
+    sc_signal<sc_uint<2>> s_id_rf_idx_w;
+    sc_signal<sc_uint<2>> s_id_rf_idx_r1;
+    sc_signal<sc_uint<2>> s_id_rf_idx_r2;
+    sc_signal<bool> s_id_rf_out_en;
+
+    sc_signal<sc_uint<8>> s_rf_data1;
+    sc_signal<sc_uint<8>> s_rf_data1_fwd; // Forwarded to IdEx
+    sc_signal<sc_uint<8>> s_rf_data2;
+    sc_signal<sc_uint<8>> s_rf_data2_fwd; // Forwarded to IdEx
     
-    sc_signal<bool> s_x_in;
-    sc_signal<bool> s_x_out;
+    // Debug RF ports
+    sc_signal<sc_uint<8>> s_rf_r0, s_rf_r1, s_rf_r2, s_rf_r3;
+    sc_signal<bool> s_flags_z, s_flags_c, s_flags_n, s_flags_o; 
+    sc_signal<bool> s_id_fwd_z, s_id_fwd_c, s_id_fwd_n, s_id_fwd_o; // New: Forwarded flags for ID stage
+    // --- ID/EX REG ---
+    sc_signal<sc_uint<2>> s_ex_alu_op;
+    sc_signal<bool> s_ex_alu_en;
+    sc_signal<bool> s_ex_rf_we;
+    sc_signal<sc_uint<2>> s_ex_rf_idx_w;
+    sc_signal<bool> s_ex_out_load;
+    sc_signal<bool> s_ex_ram_we;
+    sc_signal<sc_uint<8>> s_ex_operand;
+    sc_signal<sc_uint<8>> s_ex_rf_data1;
+    sc_signal<sc_uint<8>> s_ex_rf_data2;
+    sc_signal<sc_uint<8>> s_ex_opcode;
+    sc_signal<sc_uint<2>> s_ex_rf_idx_r1;
+    sc_signal<sc_uint<2>> s_ex_rf_idx_r2;
+    sc_signal<bool> s_ex_is_mem_access;
 
+    // --- EX STAGE ---
+    sc_signal<sc_uint<8>> s_ex_rf_data1_fwd;
+    sc_signal<sc_uint<8>> s_ex_rf_data2_fwd;
+    sc_signal<sc_uint<8>> s_ex_alu_b_in;
+    sc_signal<sc_uint<8>> s_ex_alu_result;
+    sc_signal<bool> s_ex_alu_zero;
+    sc_signal<bool> s_ex_alu_carry;
+    sc_signal<bool> s_ex_alu_negative;
+    sc_signal<bool> s_ex_alu_overflow;
+    sc_signal<sc_uint<8>> s_ram_out;
+
+    // --- EX/WB REG ---
+    sc_signal<bool> s_wb_rf_we;
+    sc_signal<sc_uint<2>> s_wb_rf_idx_w;
+    sc_signal<bool> s_wb_out_load;
+    sc_signal<bool> s_wb_ram_we;
+    sc_signal<sc_uint<8>> s_wb_alu_result;
+    sc_signal<sc_uint<8>> s_wb_operand;
+    sc_signal<sc_uint<8>> s_wb_opcode;
+    sc_signal<sc_uint<8>> s_wb_rf_data1;
+    sc_signal<sc_uint<8>> s_wb_ram_data;
+
+    // --- WB STAGE ---
+    sc_signal<sc_uint<8>> s_wb_rf_data_in;
+    sc_signal<sc_lv<8>> s_wb_out_data;
     sc_signal<sc_uint<8>> s_display_val;
-
-    sc_signal<bool> s_b_in;    // Para atrapar datos del bus al Registro B
-    sc_signal<bool> s_alu_out; // Para enviar el resultado de la ALU al Bus
-    sc_signal<sc_uint<2>> s_alu_op; // 0 = Suma, 1 = Resta
-
-    // 3. Cables de Datos Especificos
-    sc_signal<sc_uint<8>> s_pc_to_bus;   // Salida del PC antes del Buffer
-    sc_signal<sc_uint<8>> s_ram_to_bus;  // Salida de la RAM antes del Buffer
-    sc_signal<sc_uint<8>> s_mar_to_ram; // Salida limpia del MAR
     
-    // El IR ahora recibe 1 byte o 2 bytes. Mantendremos la salida de 8 bits para el OpCode y Operand (ahora ambos son 8 bits, pero IR se actualizara despues)
-    sc_signal<sc_lv<8>> s_ir_opcode;     
-    sc_signal<sc_lv<8>> s_ir_operand;    
+    // Components
+    ProgramCounter* Pc;
+    ROM* InstRom;
+    RAM* DataRam;
+    IF_ID_Reg* IfId;
+    ID_EX_Reg* IdEx;
+    EX_WB_Reg* ExWb;
+    ControlUnit* Cu;
+    RegisterFile* Rf;
+    ALU* Alu;
+    OutputRegister* OutReg;
+
+    // Debug Traces
+    sc_signal<sc_uint<8>> s_pc_to_bus;
+    sc_signal<sc_lv<8>>   s_ir_opcode;
+    sc_signal<sc_lv<8>>   s_ir_operand;
+    sc_signal<sc_uint<8>> s_mar_to_ram;
+    sc_signal<sc_uint<8>> s_ram_to_bus;
+    sc_signal<sc_uint<8>> common_bus;
     
-    sc_signal<sc_uint<8>> s_rega_out;    // Salida del acumulador
-    sc_signal<sc_uint<8>> s_regx_out;    // Salida del Registro Índice X
+    sc_signal<sc_uint<8>> s_if_pc_dbg, s_id_pc_dbg, s_ex_pc_dbg, s_wb_pc_dbg;
+    sc_signal<sc_uint<8>> s_if_opcode_dbg, s_if_operand_dbg;
+    sc_signal<sc_uint<8>> s_ex_opcode_dbg, s_ex_operand_dbg;
+    sc_signal<sc_uint<8>> s_wb_opcode_dbg, s_wb_operand_dbg;
 
-    sc_signal<sc_uint<8>> s_breg_out;   // Del RegB directo a la ALU
-    sc_signal<sc_uint<8>> s_alu_result; // De la ALU a su Buffer
+    void pipeline_glue() {
+        s_true.write(1); s_false.write(0);
 
-    // Adaptadores de Pegamento
-    sc_signal<sc_uint<8>> s_bus_to_uint;
-    sc_signal<sc_lv<8>>   s_bus_to_ir_8;
-    sc_signal<sc_uint<8>> s_opcode_to_cu;    // Convierte el OpCode a numero para la CU
-    sc_signal<sc_uint<8>> s_operand_to_pc;
+        s_pc_en.write(!s_id_pc_load.read());
+        s_if_flush.write(s_id_pc_load.read());
 
-    //sc_signal<bool> s_ram_we_read_only;    
-
-    // --- INSTANCIAS DE LOS COMPONENTES ---
-    ProgramCounter *Pc;
-    InstructionRegister *Ir;
-    MemoryAddressRegister *Mar;
-    RAM *Ram;
-    Accumulator *RegA;
-    Accumulator *RegB;
-    Accumulator *RegX;
-    ALU *Alu;
-    OutputRegister *OutReg;
-    ControlUnit *Cu;
-
-    TriStateBuffer *BufPc;
-    TriStateBuffer *BufRam;
-    TriStateBuffer *BufIr;
-    TriStateBuffer *BufRegA;
-    TriStateBuffer *BufRegX;
-    TriStateBuffer *BufAlu;
-
-    // --- PROCESO TRADUCTOR (GLUE LOGIC) ---
-    void signal_adapters() {
-        s_false_wire.write(false);
-        sc_lv<8> bus_val = common_bus.read();
+        sc_uint<16> inst = s_rom_data.read();
+        s_rom_opcode.write(inst.range(15, 8).to_uint());
+        s_rom_operand.write(inst.range(7, 0).to_uint());
         
-        // 1. Bus -> uint (General)
-        if (bus_val.is_01()) s_bus_to_uint.write(bus_val.to_uint());
-        
-        // 2. Bus -> IR (Pasa directo ahora que el bus es de 8 bits)
-        s_bus_to_ir_8.write(bus_val);
+        sc_lv<8> op_raw = s_id_opcode_raw.read();
+        sc_lv<8> opr_raw = s_id_operand_raw.read();
+        if (op_raw.is_01()) s_id_opcode.write(op_raw.to_uint());
+        if (opr_raw.is_01()) s_id_operand.write(opr_raw.to_uint());
 
-        // 3. IR -> CU y PC
-        if (s_ir_opcode.read().is_01()) s_opcode_to_cu.write(s_ir_opcode.read().to_uint());
-        if (s_ir_operand.read().is_01()) s_operand_to_pc.write(s_ir_operand.read().to_uint());
+        // --- WB STAGE DATA MUX (Calculate first for forwarding) ---
+        sc_uint<8> wb_data = 0;
+        sc_uint<8> op_wb = s_wb_opcode.read();
+        if ((op_wb & 0xFC) == 0x20) { // LDI
+            wb_data = s_wb_operand.read();
+        } else if ((op_wb & 0xFC) == 0x10) { // LD
+            wb_data = s_wb_ram_data.read();
+        } else {
+            wb_data = s_wb_alu_result.read(); // ADD/SUB
+        }
+        s_wb_rf_data_in.write(wb_data);
+        
+        // --- EX STAGE DATA MUX (Calculate for EX→ID forwarding) ---
+        sc_uint<8> ex_data = 0;
+        sc_uint<8> op_ex_fwd = s_ex_opcode.read();
+        if ((op_ex_fwd & 0xFC) == 0x20) { // LDI in EX: data = operand
+            ex_data = s_ex_operand.read();
+        } else if ((op_ex_fwd & 0xFC) == 0x10) { // LD in EX: data = RAM output
+            ex_data = s_ram_out.read();
+        } else { // ADD/SUB in EX: data = ALU result
+            ex_data = s_ex_alu_result.read();
+        }
+
+        // --- ID STAGE FORWARDING (WB→ID then EX→ID, EX has priority) ---
+        sc_uint<8> id1 = s_rf_data1.read();
+        sc_uint<8> id2 = s_rf_data2.read();
+        // Lower priority: WB→ID
+        if (s_wb_rf_we.read()) {
+            if (s_wb_rf_idx_w.read() == s_id_rf_idx_r1.read()) id1 = wb_data;
+            if (s_wb_rf_idx_w.read() == s_id_rf_idx_r2.read()) id2 = wb_data;
+        }
+        // Higher priority: EX→ID (overrides WB if both match)
+        if (s_ex_rf_we.read()) {
+            if (s_ex_rf_idx_w.read() == s_id_rf_idx_r1.read()) id1 = ex_data;
+            if (s_ex_rf_idx_w.read() == s_id_rf_idx_r2.read()) id2 = ex_data;
+        }
+        s_rf_data1_fwd.write(id1);
+        s_rf_data2_fwd.write(id2);
+
+        // --- EX STAGE DATA FORWARDING (WB→EX) ---
+        sc_uint<8> val1 = s_ex_rf_data1.read();
+        sc_uint<8> val2 = s_ex_rf_data2.read();
+        if (s_wb_rf_we.read()) {
+            if (s_wb_rf_idx_w.read() == s_ex_rf_idx_r1.read()) val1 = wb_data;
+            if (s_wb_rf_idx_w.read() == s_ex_rf_idx_r2.read()) val2 = wb_data;
+        }
+        s_ex_rf_data1_fwd.write(val1);
+        s_ex_rf_data2_fwd.write(val2);
+
+        bool fz = s_flags_z.read();
+        bool fc = s_flags_c.read();
+        bool fn = s_flags_n.read();
+        bool fo = s_flags_o.read();
+        if (s_ex_alu_en.read()) {
+            fz = s_ex_alu_zero.read();
+            fc = s_ex_alu_carry.read();
+            fn = s_ex_alu_negative.read();
+            fo = s_ex_alu_overflow.read();
+        }
+        s_id_fwd_z.write(fz);
+        s_id_fwd_c.write(fc);
+        s_id_fwd_n.write(fn);
+        s_id_fwd_o.write(fo);
+
+        // ALU B Input Mux
+        sc_uint<8> op_ex = s_ex_opcode.read();
+        if (op_ex == OP_ADD_RR || op_ex == OP_SUB_RR) {
+            s_ex_alu_b_in.write(val2);
+        } else {
+            s_ex_alu_b_in.write(s_ram_out.read()); // RAM access (LD)
+        }
+
+        // Trace signals
+        s_pc_to_bus.write(s_id_pc.read());
+        s_ir_opcode.write(s_id_opcode_raw.read());
+        s_ir_operand.write(s_id_operand_raw.read());
+        s_mar_to_ram.write(s_ex_operand.read());
+        s_ram_to_bus.write(s_ram_out.read());
+        common_bus.write(s_wb_rf_data_in.read());
+        s_wb_out_data.write(s_wb_rf_data1.read()); // Convert to sc_lv for OutputRegister
+        s_rega_out.write(s_rf_r0.read()); // For display compatibility
+
+        s_if_pc_dbg.write(s_pc_out.read());
+        s_id_pc_dbg.write(s_id_pc.read());
+        s_ex_pc_dbg.write(s_ex_pc_dbg_internal.read());
+        s_wb_pc_dbg.write(s_wb_pc_dbg_internal.read());
+        s_if_opcode_dbg.write(inst.range(15, 8).to_uint());
+        s_if_operand_dbg.write(inst.range(7, 0).to_uint());
+        s_ex_opcode_dbg.write(s_ex_opcode.read());
+        s_ex_operand_dbg.write(s_ex_operand.read());
+        s_wb_opcode_dbg.write(s_wb_opcode.read());
+        s_wb_operand_dbg.write(s_wb_operand.read());
     }
+
+    sc_signal<sc_uint<8>> s_ex_pc_dbg_internal;
+    sc_signal<sc_uint<8>> s_wb_pc_dbg_internal;
+    sc_signal<sc_uint<8>> s_rega_out; // compatibility
 
     SC_CTOR(ComputerTop) {
+        SC_METHOD(pipeline_glue);
+        sensitive << clk << s_rom_data << s_id_pc_load << s_id_opcode_raw << s_id_operand_raw 
+                  << s_id_pc << s_ex_opcode << s_ex_operand << s_ex_rf_data1 << s_ex_rf_data2
+                  << s_ex_rf_idx_r1 << s_ex_rf_idx_r2 << s_wb_rf_data_in << s_rf_data1 << s_rf_data2
+                  << s_id_rf_idx_r1 << s_id_rf_idx_r2
+                  << s_ram_out << s_wb_opcode << s_wb_operand << s_wb_ram_data 
+                  << s_wb_rf_data1 << s_wb_alu_result << s_wb_rf_we << s_wb_rf_idx_w
+                  << s_pc_out << s_ex_pc_dbg_internal << s_wb_pc_dbg_internal
+                  << s_ex_alu_zero << s_ex_alu_carry << s_ex_alu_negative << s_ex_alu_en
+                  << s_ex_alu_result << s_ex_rf_we << s_ex_rf_idx_w  // EX→ID forwarding
+                  << s_flags_z << s_flags_c << s_flags_n;
 
-        // Registramos el traductor de senales para que corra continuamente
-        SC_METHOD(signal_adapters);
-        sensitive << common_bus << s_ir_opcode << s_ir_operand;
-
-        // 1. Program Counter
         Pc = new ProgramCounter("PC");
-        Pc->clk(clk); Pc->reset(reset);
-        Pc->en(s_pc_inc); Pc->load(s_pc_load);
-        Pc->q(s_pc_to_bus);
-        Pc->data_in(s_operand_to_pc);
+        Pc->clk(clk); Pc->reset(reset); Pc->en(s_pc_en); Pc->load(s_id_pc_load); Pc->data_in(s_id_operand); Pc->q(s_pc_out);
 
-        // 2. Buffer PC -> Bus
-        BufPc = new TriStateBuffer("BUF_PC");
-        BufPc->data_in(s_pc_to_bus);
-        BufPc->enable(s_pc_out);
-        BufPc->bus_out(common_bus);
+        InstRom = new ROM("InstRom");
+        InstRom->addr(s_pc_out); InstRom->data_out(s_rom_data);
 
-        // MAR
-        Mar = new MemoryAddressRegister("MAR");
-        Mar->clk(clk); Mar->ld(s_mar_in);
-        Mar->data_in(common_bus); // Escucha directamente el bus
-        Mar->addr_out(s_mar_to_ram); // Entrega la direccion a la RAM
+        IfId = new IF_ID_Reg("IF_ID");
+        IfId->clk(clk); IfId->reset(reset); IfId->enable(s_true); IfId->flush(s_if_flush);
+        IfId->pc_in(s_pc_out); IfId->opcode_in(s_rom_opcode); IfId->operand_in(s_rom_operand);
+        IfId->pc_out(s_id_pc); IfId->opcode_out(s_id_opcode_raw); IfId->operand_out(s_id_operand_raw);
 
-        // 3. RAM
-        Ram = new RAM("RAM");
-        Ram->clk(clk);
-        Ram->we(s_ram_we); // Memoria estrictamente protegida
-        Ram->addr(s_mar_to_ram); // Conectado a la salida del MAR/IR
-        Ram->data_in(s_bus_to_uint); // Para futuras escrituras
-        Ram->data_out(s_ram_to_bus);
-
-        // 4. Buffer RAM -> Bus
-        BufRam = new TriStateBuffer("BUF_RAM");
-        BufRam->data_in(s_ram_to_bus);
-        BufRam->enable(s_ram_out);
-        BufRam->bus_out(common_bus);
-
-        // 3. Instruction Register (IR)
-        Ir = new InstructionRegister("IR");
-        Ir->clk(clk);
-        Ir->ld_opcode(s_ir_ld_opcode);
-        Ir->ld_operand(s_ir_ld_operand);
-        Ir->data_in(s_bus_to_ir_8); // Captura desde el Bus
-        Ir->opcode_out(s_ir_opcode);
-        Ir->operand_out(s_ir_operand);
-
-        // 8. Buffer IR -> Bus (Para que el operando llegue al MAR en T4)
-        BufIr = new TriStateBuffer("BUF_IR");
-        BufIr->data_in(s_operand_to_pc); // Reusamos este cable que ya traduce a numero puro
-        BufIr->enable(s_ir_out);
-        BufIr->bus_out(common_bus);
-
-        // 6. Unidad de Control (El Cerebelo)
         Cu = new ControlUnit("CU");
-        Cu->clk(clk); Cu->reset(reset);
-        Cu->opcode(s_opcode_to_cu); // Lee el OpCode del IR
-        Cu->pc_out(s_pc_out); Cu->pc_inc(s_pc_inc); Cu->pc_load(s_pc_load);
-        Cu->mar_in(s_mar_in); Cu->ram_out(s_ram_out);
-        Cu->ir_ld_opcode(s_ir_ld_opcode);
-        Cu->ir_ld_operand(s_ir_ld_operand);
-        Cu->ir_out(s_ir_out);
-        Cu->a_in(s_a_in); 
-        Cu->flag_z(s_alu_zero_flag);
-        Cu->flag_c(s_latched_carry);
-        Cu->out_load(s_out_load);
-        Cu->a_out(s_a_out);
-        Cu->x_in(s_x_in);
-        Cu->x_out(s_x_out);
-        Cu->b_in(s_b_in);
-        Cu->alu_out(s_alu_out);
-        Cu->alu_op(s_alu_op);
-        Cu->ram_we(s_ram_we);
+        Cu->opcode(s_id_opcode); Cu->operand(s_id_operand); 
+        Cu->flag_z(s_id_fwd_z); Cu->flag_c(s_id_fwd_c); Cu->flag_n(s_id_fwd_n); Cu->flag_o(s_id_fwd_o);
+        Cu->rf_we(s_id_rf_we); Cu->rf_idx_w(s_id_rf_idx_w); Cu->rf_idx_r1(s_id_rf_idx_r1); Cu->rf_idx_r2(s_id_rf_idx_r2);
+        Cu->rf_out_en(s_id_rf_out_en);
+        Cu->alu_op(s_id_alu_op); Cu->alu_en(s_id_alu_en); Cu->ram_we(s_id_ram_we); Cu->is_mem_access(s_id_is_mem_access);
+        Cu->is_store(s_id_is_store); Cu->out_load(s_id_out_load); Cu->pc_load(s_id_pc_load);
 
-        // 7. Acumulador (Registro A)
-        RegA = new Accumulator("RegA");
-        RegA->clk(clk);
-        RegA->ld(s_a_in);
-        // Reusamos el adaptador del bus a uint porque el Acumulador 
-        // tambien necesita leer un numero limpio
-        RegA->d(s_bus_to_uint); 
-        RegA->q(s_rega_out); 
-        RegA->flag_z(s_alu_zero_flag);
-        RegA->carry_in(s_alu_carry_comb);
-        RegA->flag_c(s_latched_carry);
+        Rf = new RegisterFile("RF");
+        Rf->clk(clk); Rf->reset(reset);
+        Rf->we(s_wb_rf_we); Rf->idx_w(s_wb_rf_idx_w);
+        Rf->idx_r1(s_id_rf_idx_r1); Rf->idx_r2(s_id_rf_idx_r2);
+        Rf->data_in(s_wb_rf_data_in);
+        Rf->data_out1(s_rf_data1); Rf->data_out2(s_rf_data2);
+        Rf->r0_out(s_rf_r0); Rf->r1_out(s_rf_r1); Rf->r2_out(s_rf_r2); Rf->r3_out(s_rf_r3);
 
-        // 8. Registro B (Sostiene el segundo operando)
-        RegB = new Accumulator("RegB"); // Usamos la misma estructura de registro
-        RegB->clk(clk);
-        RegB->ld(s_b_in);
-        RegB->d(s_bus_to_uint); // Escucha al bus
-        RegB->q(s_breg_out);    // Su salida va DIRECTO a la ALU, no al bus
-        RegB->flag_z(s_regb_zero_dummy);
-        RegB->carry_in(s_false_wire);
-        RegB->flag_c(s_regb_carry_dummy);
+        IdEx = new ID_EX_Reg("ID_EX");
+        IdEx->clk(clk); IdEx->reset(reset); IdEx->enable(s_true); IdEx->flush(s_false);
+        IdEx->alu_op_in(s_id_alu_op); IdEx->b_in_ctrl(s_id_alu_en);
+        IdEx->rf_we_in(s_id_rf_we); IdEx->rf_idx_w_in(s_id_rf_idx_w);
+        IdEx->rf_idx_r1_in(s_id_rf_idx_r1); IdEx->rf_idx_r2_in(s_id_rf_idx_r2);
+        IdEx->out_load_ctrl(s_id_out_load); IdEx->ram_we_ctrl(s_id_ram_we);
+        IdEx->operand_in(s_id_operand); IdEx->rf_data1_in(s_rf_data1_fwd); IdEx->rf_data2_in(s_rf_data2_fwd);
+        IdEx->opcode_in(s_id_opcode); IdEx->pc_in(s_id_pc);
+        IdEx->alu_op_out(s_ex_alu_op); IdEx->b_in_out(s_ex_alu_en);
+        IdEx->rf_we_out(s_ex_rf_we); IdEx->rf_idx_w_out(s_ex_rf_idx_w);
+        IdEx->rf_idx_r1_out(s_ex_rf_idx_r1); IdEx->rf_idx_r2_out(s_ex_rf_idx_r2);
+        IdEx->out_load_out(s_ex_out_load); IdEx->ram_we_out(s_ex_ram_we);
+        IdEx->operand_out(s_ex_operand); IdEx->rf_data1_out(s_ex_rf_data1); IdEx->rf_data2_out(s_ex_rf_data2);
+        IdEx->opcode_out(s_ex_opcode); IdEx->pc_out(s_ex_pc_dbg_internal);
 
-        // 8.5 Registro Indice X (Punteros)
-        RegX = new Accumulator("RegX");
-        RegX->clk(clk);
-        RegX->ld(s_x_in);
-        RegX->d(s_bus_to_uint);
-        RegX->q(s_regx_out);
-        RegX->flag_z(s_regx_zero_dummy);
-        RegX->carry_in(s_false_wire);
-        RegX->flag_c(s_regx_carry_dummy);
+        DataRam = new RAM("DataRam");
+        DataRam->clk(clk); DataRam->we(s_ex_ram_we); DataRam->addr(s_ex_operand);
+        DataRam->data_in(s_ex_rf_data1_fwd); DataRam->data_out(s_ram_out);
 
-        // 9. La Unidad Aritmetico Logica (Tu diseño avanzado)
         Alu = new ALU("ALU");
-        Alu->a(s_rega_out); 
-        Alu->b(s_breg_out); 
-        Alu->op(s_alu_op);           // Usamos tu selector de 2 bits
-        Alu->result(s_alu_result); 
-        Alu->zero_flag(s_alu_zero_dummy);
-        Alu->carry_flag(s_alu_carry_comb);
+        Alu->a(s_ex_rf_data1_fwd); Alu->b(s_ex_alu_b_in); Alu->op(s_ex_alu_op); Alu->result(s_ex_alu_result);
+        Alu->zero_flag(s_ex_alu_zero); Alu->carry_flag(s_ex_alu_carry); Alu->negative_flag(s_ex_alu_negative);
+        Alu->overflow_flag(s_ex_alu_overflow);
 
-        // 10. Buffer ALU -> Bus
-        BufAlu = new TriStateBuffer("BUF_ALU");
-        BufAlu->data_in(s_alu_result);
-        BufAlu->enable(s_alu_out);
-        BufAlu->bus_out(common_bus);
+        ExWb = new EX_WB_Reg("EX_WB");
+        ExWb->clk(clk); ExWb->reset(reset); ExWb->enable(s_true);
+        ExWb->rf_we_ctrl(s_ex_rf_we); ExWb->rf_idx_w_in(s_ex_rf_idx_w);
+        ExWb->out_load_ctrl(s_ex_out_load); ExWb->ram_we_ctrl(s_ex_ram_we);
+        ExWb->alu_result_in(s_ex_alu_result); ExWb->operand_in(s_ex_operand);
+        ExWb->opcode_in(s_ex_opcode); ExWb->rf_data1_in(s_ex_rf_data1_fwd); ExWb->ram_data_in(s_ram_out);
+        ExWb->rf_we_out(s_wb_rf_we); ExWb->rf_idx_w_out(s_wb_rf_idx_w);
+        ExWb->out_load_out(s_wb_out_load); ExWb->ram_we_out(s_wb_ram_we);
+        ExWb->alu_result_out(s_wb_alu_result); ExWb->operand_out(s_wb_operand);
+        ExWb->opcode_out(s_wb_opcode); ExWb->rf_data1_out(s_wb_rf_data1); ExWb->ram_data_out(s_wb_ram_data);
+        ExWb->pc_in(s_ex_pc_dbg_internal); ExWb->pc_out(s_wb_pc_dbg_internal);
 
-        // El Buffer que conecta la salida de RegA con el Bus
-        BufRegA = new TriStateBuffer("BUF_REGA");
-        BufRegA->data_in(s_rega_out); // Escucha al RegA
-        BufRegA->enable(s_a_out);     // Controlado por la CU (a_out)
-        BufRegA->bus_out(common_bus); // Habla con el Bus Central
-
-        // Buffer de salida del RegX al Bus
-        BufRegX = new TriStateBuffer("BUF_REGX");
-        BufRegX->data_in(s_regx_out);
-        BufRegX->enable(s_x_out);
-        BufRegX->bus_out(common_bus);
-
-        // 3. Connect the Output Register
         OutReg = new OutputRegister("OUT_REG");
-        OutReg->clk(clk);
-        OutReg->load(s_out_load); // Connected to Control Unit
-        OutReg->data_in(common_bus); // Listens to the Bus
+        OutReg->clk(clk); OutReg->load(s_wb_out_load); OutReg->data_in(s_wb_out_data); 
         OutReg->display(s_display_val);
 
-
-        // s_ram_we ya no es constante, viene de la Control Unit
+        SC_METHOD(update_flags);
+        sensitive << clk.pos();
     }
 
-    ~ComputerTop() {
-        if(Pc) delete Pc; 
-        if(Ram) delete Ram;
-        if(Mar) delete Mar; 
-        if(Ir) delete Ir; 
-        if(RegA) delete RegA; 
-        if(RegB) delete RegB;
-        if(RegX) delete RegX;
-        if(Alu) delete Alu; 
-        if(OutReg) delete OutReg;
-        if(Cu) delete Cu;
-
-        if(BufPc) delete BufPc;
-        if(BufRam) delete BufRam;
-        if(BufIr) delete BufIr;
-        if(BufRegA) delete BufRegA;
-        if(BufRegX) delete BufRegX;
-        if(BufAlu) delete BufAlu;
+    void update_flags() {
+        if (reset.read()) {
+            s_flags_z.write(0); s_flags_c.write(0); s_flags_n.write(0); s_flags_o.write(0);
+        } else if (s_ex_alu_en.read()) {
+             s_flags_z.write(s_ex_alu_zero.read());
+             s_flags_c.write(s_ex_alu_carry.read());
+             s_flags_n.write(s_ex_alu_negative.read());
+             s_flags_o.write(s_ex_alu_overflow.read());
+        }
     }
 };
 

@@ -1,46 +1,28 @@
-; div.asm - División de 10 / 2 (Software)
-; Algoritmo: Restas sucesivas (Exacta)
-; 0: LDI 10
-; 1: STA 13
-; 2: LDI 2
-; 3: STA 14
-; 4: LDI 0
-; 5: STA 15
-; 6: LDA 13 (LOOP)
-; 7: SUB 14
-; 8: JZ 14  (saltar a ZERO)
-; 9: STA 13 (nuevo resto)
-; 10: LDA 15 (inc cociente)
-; 11: ADD 12 (RAM[12]=1)
-; 12: STA 15
-; 13: JMP 6
-; 14: LDA 15 (ZERO)
-; 15: ADD 12
-; 16: OUT
-; 17: HLT
+; div.asm - Division entera: 10 / 2 = 5
+; R0: Dividendo, R1: Divisor, R2: Cociente, R3: Constante 1
+; Algoritmo: Resta repetida con deteccion por flag Negative
+;
+; Mapa de memoria:
+;   0: LDI R0 10
+;   2: LDI R1 2
+;   4: LDI R2 0
+;   6: LDI R3 1
+;   8: SUB R0 R1    <- LOOP
+;  10: JN  18       (si negativo, ir a END)
+;  12: ADD R2 R3    (cociente++)
+;  14: JZ  18       (si R0 == 0, ir a END)
+;  16: JMP 8        (repetir)
+;  18: OUT R2       <- END
+;  20: HLT
 
-LDI 10
-STA 250
-LDI 2
-STA 251
-LDI 0
-STA 252
-
-; --- LOOP --- (Address 12)
-LDA 250  
-SUB 251
-JZ 28      ; Salto a ZERO si da 0
-
-STA 250
-LDA 252
-ADD 249
-STA 252
-JMP 12     ; Vuelve a LOOP
-
-; --- ZERO --- (Address 28)
-LDA 252   
-ADD 249
-OUT
-HLT
-
-249: 1
+LDI R0 10
+LDI R1 2
+LDI R2 0
+LDI R3 1
+SUB R0 R1  
+JN 18      
+ADD R2 R3  
+JZ 18      
+JMP 8      
+OUT R2     
+HLT        

@@ -11,10 +11,6 @@
 #include <cctype>
 #include "isa.h"
 
-/**
- * @brief Simple C++ Assembler/Loader for the SAP-1 Microprocessor.
- * Directamente lee archivos .asm y los carga en la memoria del simulador.
- */
 class AssemblerLoader {
 public:
     static bool load(const std::string& filename, sc_uint<8>* memory, int mem_size = 256) {
@@ -25,91 +21,127 @@ public:
         }
 
         std::map<std::string, OpCode> opcodes = {
-            {"NOP", OP_NOP}, {"LDA", OP_LDA}, {"ADD", OP_ADD},
-            {"SUB", OP_SUB}, {"OUT", OP_OUT}, {"JMP", OP_JMP},
-            {"JZ", OP_JZ},   {"JC", OP_JC},   {"HLT", OP_HLT}, 
-            {"LDI", OP_LDI}, {"STA", OP_STA},
-            {"TAX", OP_TAX}, {"TXA", OP_TXA},
-            {"LDA_X", OP_LDA_X}, {"STA_X", OP_STA_X}
+            {"NOP", OP_NOP}, {"HLT", OP_HLT}, {"JMP", OP_JMP},
+            {"JZ", OP_JZ},   {"JC", OP_JC}, {"JN", OP_JN},
+            {"LD", OP_LD_R0}, {"LDI", OP_LDI_R0}, {"ST", OP_ST_R0},
+            {"ADD", OP_ADD_RR}, {"SUB", OP_SUB_RR}, {"OUT", OP_OUT_R0},
+            {"LDA", OP_LD_R0}, {"STA", OP_ST_R0}
+        };
+
+        auto get_reg = [](std::string r) -> int {
+            if (r == "R0") return 0;
+            if (r == "R1") return 1;
+            if (r == "R2") return 2;
+            if (r == "R3") return 3;
+            return -1;
+        };
+
+        auto clean = [](std::string s) {
+            std::string res;
+            for (char c : s) {
+                if (c == ';' || c == '#' || c == ',') break;
+                if (std::isalnum(c) || c == 'x' || c == 'X' || c == '-') res += (char)std::toupper(c);
+            }
+            return res;
+        };
+
+        auto is_num = [](const std::string& s) {
+            if (s.empty()) return false;
+            if (s[0] == '-') return s.size() > 1 && std::isdigit(s[1]);
+            return std::isdigit(s[0]) || (s.size() > 1 && s[0] == '0' && std::toupper(s[1]) == 'X');
+        };
+
+        auto to_num = [](const std::string& s) {
+            try {
+                if (s.empty()) return 0UL;
+                if (s.find("0X") == 0) return std::stoul(s, nullptr, 16);
+                return (unsigned long)std::stol(s, nullptr, 10);
+            } catch (...) { 
+                std::cerr << "CRITICAL: Falla conversion stol/stoul para token: [" << s << "]\n";
+                throw; 
+            }
         };
 
         std::string line;
         int address = 0;
 
         while (std::getline(file, line)) {
-            // 1. Eliminar comentarios
             size_t comment_pos = line.find(';');
-            if (comment_pos != std::string::npos) {
-                line = line.substr(0, comment_pos);
-            }
-
-            // 2. Limpiar espacios y convertir a mayúsculas
+            if (comment_pos != std::string::npos) line = line.substr(0, comment_pos);
+            
             line = trim(line);
             if (line.empty()) continue;
-            std::transform(line.begin(), line.end(), line.begin(), ::toupper);
 
-            // 3. Manejar Direcciones Explicitadas (ej: "14: 7")
+            // Manejar Direcciones Explicitadas (ej: "100: 7")
             size_t colon_pos = line.find(':');
             if (colon_pos != std::string::npos) {
-                std::string addr_str = trim(line.substr(0, colon_pos));
-                std::string val_str = trim(line.substr(colon_pos + 1));
-                
-                try {
-                    int target_addr = (addr_str.find("0X") == 0) ? std::stoul(addr_str, nullptr, 16) : std::stoul(addr_str, nullptr, 10);
-                    if (target_addr >= 0 && target_addr < mem_size) {
-                        if (!val_str.empty()) {
-                            unsigned int val = (val_str.find("0X") == 0) ? std::stoul(val_str, nullptr, 16) : std::stoul(val_str, nullptr, 10);
-                            memory[target_addr] = val & 0xFF;
-                        }
-                        // Si era una etiqueta de salto (ej: "LOOP: LDA 5"), actualizamos address
-                        // Pero para esta ISA simplificada, asumimos que address sigue secuencial si no hay valor
-                        // address = target_addr; // Opcional
-                    }
-                } catch (...) {}
+                std::string addr_str = clean(trim(line.substr(0, colon_pos)));
+                std::string val_str = clean(trim(line.substr(colon_pos + 1)));
+                if (is_num(addr_str) && is_num(val_str)) {
+                    int target = (int)to_num(addr_str);
+                    if (target >= 0 && target < mem_size) memory[target] = to_num(val_str) & 0xFF;
+                }
                 continue;
             }
 
-            // 4. Parsear Token de instruccion secuencial
             if (address >= mem_size) continue;
 
             std::stringstream ss(line);
             std::string mnemonic;
-            ss >> mnemonic;
+            if (!(ss >> mnemonic)) continue;
+            mnemonic = clean(mnemonic);
+            if (mnemonic.empty()) continue;
 
             if (opcodes.count(mnemonic)) {
-                OpCode op = opcodes[mnemonic];
+                unsigned int op = opcodes[mnemonic];
                 unsigned int operand = 0;
+                std::string t1, t2;
 
-                if (op == OP_LDA || op == OP_ADD || op == OP_SUB || op == OP_JMP || op == OP_JZ || op == OP_JC || op == OP_LDI || op == OP_STA) {
-                    std::string op_str;
-                    if (ss >> op_str) {
-                        try {
-                            operand = (op_str.find("0X") == 0) ? std::stoul(op_str, nullptr, 16) : std::stoul(op_str, nullptr, 10);
-                        } catch (...) {
-                            std::cerr << "Error: Operando invalido en linea: " << line << std::endl;
-                            return false;
+                if (mnemonic == "LD" || mnemonic == "LDI" || mnemonic == "OUT" || mnemonic == "LDA") {
+                    if (ss >> t1) {
+                        t1 = clean(t1);
+                        int r = get_reg(t1);
+                        if (r != -1) {
+                            if (mnemonic == "LD" || mnemonic == "LDA") op = OP_LD_R0 + r;
+                            else if (mnemonic == "LDI") op = OP_LDI_R0 + r;
+                            else if (mnemonic == "OUT") op = OP_OUT_R0 + r;
+                            
+                            if (mnemonic != "OUT" && ss >> t2) {
+                                t2 = clean(t2);
+                                if (is_num(t2)) operand = to_num(t2);
+                            }
+                        } else if (is_num(t1)) {
+                            operand = to_num(t1);
                         }
                     }
                 }
+                else if (mnemonic == "ST" || mnemonic == "STA") {
+                    if (ss >> t1 >> t2) {
+                        t1 = clean(t1); t2 = clean(t2);
+                        int r1 = get_reg(t1), r2 = get_reg(t2);
+                        if (r1 != -1) { op = OP_ST_R0 + r1; if (is_num(t2)) operand = to_num(t2); }
+                        else { if (r2 != -1) op = OP_ST_R0 + r2; if (is_num(t1)) operand = to_num(t1); }
+                    }
+                }
+                else if (mnemonic == "ADD" || mnemonic == "SUB") {
+                    if (ss >> t1 >> t2) {
+                        t1 = clean(t1); t2 = clean(t2);
+                        int rd = get_reg(t1), rs = get_reg(t2);
+                        if (rd != -1 && rs != -1) operand = (rd << 4) | (rs & 0x0F);
+                        else if (rd != -1) operand = (rd << 4);
+                    }
+                }
+                else if (mnemonic == "JMP" || mnemonic == "JZ" || mnemonic == "JC" || mnemonic == "JN") {
+                    if (ss >> t1) { t1 = clean(t1); if (is_num(t1)) operand = to_num(t1); }
+                }
 
-                // Cada instrucción ocupa 2 bytes: [OpCode] y [Operando]
-                // Si la instrucción no usa operando, guardamos un 0x00 para mantener la estructura uniforme
-                memory[address] = op;
+                memory[address] = op & 0xFF;
                 memory[address + 1] = operand & 0xFF;
                 address += 2;
-            } else {
-                try {
-                    unsigned int val = (mnemonic.find("0X") == 0) ? std::stoul(mnemonic, nullptr, 16) : std::stoul(mnemonic, nullptr, 10);
-                    memory[address] = val & 0xFF;
-                    address++;
-                } catch (...) {
-                    std::cerr << "Error: Token desconocido: " << mnemonic << std::endl;
-                    return false;
-                }
+            } else if (is_num(mnemonic)) {
+                memory[address++] = to_num(mnemonic) & 0xFF;
             }
         }
-
-        std::cout << "Assembler: Cargadas " << address << " lineas en memoria." << std::endl;
         return true;
     }
 
@@ -119,7 +151,7 @@ private:
         while (start != s.end() && std::isspace(*start)) start++;
         auto end = s.end();
         do { end--; } while (std::distance(start, end) > 0 && std::isspace(*end));
-        return std::string(start, end + 1);
+        return (start >= end + 1) ? "" : std::string(start, end + 1);
     }
 };
 

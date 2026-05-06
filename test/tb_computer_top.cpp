@@ -13,92 +13,68 @@ int sc_main(int argc, char* argv[]) {
     Computer.clk(clk);
     Computer.reset(reset);  
 
-    // LDA 5: OpCode en mem[0], Operando en mem[1]
-    Computer.Ram->memory[0] = OP_LDA;
-    Computer.Ram->memory[1] = 5;
+    // --- PROGRAMA DE PRUEBA GPR ---
+    // 0: LDI R0, 10
+    Computer.InstRom->memory[0] = OP_LDI_R0;
+    Computer.InstRom->memory[1] = 10;
     
-    // JMP 0: OpCode en mem[2], Operando en mem[3]
-    Computer.Ram->memory[2] = OP_JMP;
-    Computer.Ram->memory[3] = 0;
+    // 2: OUT R0
+    Computer.InstRom->memory[2] = OP_OUT_R0;
+    Computer.InstRom->memory[3] = 0;
     
-    // Inyectamos un dato de prueba en la direccion 5
-    Computer.Ram->memory[5] = 0x09; // Queremos que este 9 llegue al Acumulador
+    // 4: JMP 0
+    Computer.InstRom->memory[4] = OP_JMP;
+    Computer.InstRom->memory[5] = 0;
+    
+    std::cout << "Starting 'GPR Handshake' Test (LDI R0, 10)...\n";
+    std::cout << "Time  | PC | IR (Op|Opr) | R0 | R1 | Bus  | Status\n";
+    std::cout << "---------------------------------------------------\n";
 
-    std::cout << "Starting 'Handshake' Test (LDA 5)...\n";
-    std::cout << "Time  | PC |    IR (Hex)    | MAR | RAM_Out | RegA | Bus  | FSM\n";
-    std::cout << "-----------------------------------------------------------\n";
-
-
-
-    // Pulso de Reset inicial
+    // Reset
     reset.write(1);
     sc_start(15, SC_NS);
     reset.write(0);
 
-    // Escaneamos 12 ciclos de reloj (Los 12 T-States de la FSM extendida)
-    for(int i = 0; i < 12; i++) {
+    for(int i = 0; i < 15; i++) {
         sc_start(10, SC_NS);
-        
-        
-        std::cout << std::setw(5) << sc_time_stamp() << " |  "
-                  << Computer.s_pc_to_bus.read() << " |    "
-                  // Imprimimos el OpCode y el Operando juntos
-                  << Computer.s_ir_opcode.read() << Computer.s_ir_operand.read() << "    |  "
-                  << Computer.s_mar_to_ram.read() << "  |    "
-                  << Computer.s_ram_to_bus.read() << "    |  "
-                  << Computer.s_rega_out.read() << "   | "
-                  << Computer.common_bus.read() << " | T"
-                  // Convertimos el enum del estado a numero (T1=1, T2=2...)
-                  << (Computer.Cu->current_state.read() + 1) << "\n";
+        std::cout << std::setw(5) << sc_time_stamp() << " | "
+                  << std::setw(2) << Computer.s_pc_to_bus.read().to_uint() << " |    "
+                  << std::hex << Computer.s_ir_opcode.read().to_uint() << "|" 
+                  << std::hex << Computer.s_ir_operand.read().to_uint() << std::dec << "    | "
+                  << std::setw(2) << Computer.s_rf_r0.read().to_uint() << " | "
+                  << std::setw(2) << Computer.s_rf_r1.read().to_uint() << " | "
+                  << std::setw(3) << Computer.common_bus.read().to_uint() << " | RUN\n";
     }
 
-    
+    // --- PROGRAMA DE CONTEO (Hello GPR) ---
+    // 0: LDI R0, 0
+    Computer.InstRom->memory[0] = OP_LDI_R0; Computer.InstRom->memory[1] = 0;
+    // 2: LDI R1, 1
+    Computer.InstRom->memory[2] = OP_LDI_R1; Computer.InstRom->memory[3] = 1;
+    // 4: ADD R0, R1 (Operand 0x01: Rd=0, Rs=1)
+    Computer.InstRom->memory[4] = OP_ADD_RR; Computer.InstRom->memory[5] = 0x01;
+    // 6: OUT R0
+    Computer.InstRom->memory[6] = OP_OUT_R0; Computer.InstRom->memory[7] = 0;
+    // 8: JMP 4
+    Computer.InstRom->memory[8] = OP_JMP; Computer.InstRom->memory[9] = 4;
 
-/*
-    // Dejamos que la maquina corra 2 ciclos completos de Fetch/Execute
-    // (12 T-States = 120 ns)
-    sc_start(120, SC_NS);
-
-    std::cout << "Simulation complete. Check VCD traces for signal mapping.\n";
-    */
-
-    // =================================================================
-    // EL PROGRAMA MAESTRO: Bucle Infinito de Conteo (Hello World)
-    // =================================================================
-    
-    // 1. Inyectamos la ROM (El Codigo de 16 bits)
-    Computer.Ram->memory[0] = OP_LDA; Computer.Ram->memory[1] = 6; // 0: LDA 6
-    Computer.Ram->memory[2] = OP_ADD; Computer.Ram->memory[3] = 7; // 2: ADD 7
-    Computer.Ram->memory[4] = OP_OUT; Computer.Ram->memory[5] = 0; // 4: OUT
-    Computer.Ram->memory[6] = OP_JMP; Computer.Ram->memory[7] = 2; // 6: JMP 2 (Vuelve al ADD)
-
-    // Datos (Ahora en direcciones seguras)
-    Computer.Ram->memory[6] = 0x00; // Valor inicial
-    Computer.Ram->memory[7] = 0x01; // Incremento (+1)
-
-    // 3. ¡EL REINICIO VITAL! (Apagar y encender la maquina)
     reset.write(1);
     sc_start(15, SC_NS);
     reset.write(0);
 
-    std::cout << "\nStarting 'Hello World' Counting Loop...\n";
-    std::cout << "Time  | PC |    IR (Hex)    | MAR | RAM_Out | RegA | Bus  | FSM\n";
-    std::cout << "-----------------------------------------------------------\n";
+    std::cout << "\nStarting 'Hello GPR' Counting Loop...\n";
+    std::cout << "Time  | PC | IR (Op|Opr) | R0 | R1 | Bus  | Status\n";
+    std::cout << "---------------------------------------------------\n";
 
-    // 4. Ejecutar y Observar
-    // Le damos 40 ciclos para asegurar que el bucle de la muerte de la vuelta
-    // al menos dos o tres veces para ver el contador subir.
     for(int i = 0; i < 40; i++) { 
         sc_start(10, SC_NS);
-        
-        std::cout << std::setw(5) << sc_time_stamp() << " |  "
-                  << Computer.s_pc_to_bus.read() << " |    "
-                  << Computer.s_ir_opcode.read() << Computer.s_ir_operand.read() << "    |  "
-                  << Computer.s_mar_to_ram.read() << "  |    "
-                  << Computer.s_ram_to_bus.read() << "    |  "
-                  << Computer.s_rega_out.read() << "   | "
-                  << Computer.common_bus.read() << " | T"
-                  << (Computer.Cu->current_state.read() + 1) << "\n";
+        std::cout << std::setw(5) << sc_time_stamp() << " | "
+                  << std::setw(2) << Computer.s_pc_to_bus.read().to_uint() << " |    "
+                  << std::hex << Computer.s_ir_opcode.read().to_uint() << "|" 
+                  << std::hex << Computer.s_ir_operand.read().to_uint() << std::dec << "    | "
+                  << std::setw(2) << Computer.s_rf_r0.read().to_uint() << " | "
+                  << std::setw(2) << Computer.s_rf_r1.read().to_uint() << " | "
+                  << std::setw(3) << Computer.common_bus.read().to_uint() << " | PIPE\n";
     }
 
     return 0;

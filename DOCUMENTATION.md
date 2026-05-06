@@ -1,6 +1,6 @@
-# Documentación Técnica: Microprocesador SAP-1 (Arquitectura de 16-bits)
+# Documentación Técnica: Microprocesador KHR-8 (Arquitectura de 8-bits)
 
-Este documento proporciona una visión detallada del diseño, funcionamiento y programación del microprocesador SAP-1 modificado para soportar un entorno gráfico (GPU/VRAM) y un Juego de la Vida de Conway.
+Este documento proporciona una visión detallada del diseño, funcionamiento y programación del microprocesador KHR-8 modificado para soportar un entorno gráfico (GPU/VRAM) y un Juego de la Vida de Conway.
 
 ---
 

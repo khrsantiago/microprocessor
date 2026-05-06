@@ -13,6 +13,8 @@ SC_MODULE(ALU) {
     sc_out<sc_uint<8>> result;
     sc_out<bool> zero_flag;
     sc_out<bool> carry_flag;
+    sc_out<bool> negative_flag; // New: Bit 7 of result
+    sc_out<bool> overflow_flag; // New: Signed overflow
 
     // Behavioral implementation of the ALU
     void execute() {
@@ -65,6 +67,15 @@ SC_MODULE(ALU) {
         // Output routing
         result.write(final_result);
         zero_flag.write(z);
+        negative_flag.write((bool)final_result[7]);
+
+        // Signed Overflow logic: (A7 == Bmod7) && (A7 != R7)
+        // If adding two numbers of same sign results in different sign
+        bool a7 = val_a[7];
+        bool b7 = b_mod[7];
+        bool r7 = final_result[7];
+        bool v = (a7 == b7) && (a7 != r7);
+        overflow_flag.write(v);
     }
 
     // Constructor: Defining the sensitivity list

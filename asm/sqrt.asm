@@ -1,54 +1,34 @@
-; sqrt.asm - The Master Demonstration Program
-; Algoritmo: Raíz Cuadrada Entera por método de restas sucesivas de números impares.
-; Encuentra qué numero elevado al cuadrado construyó nuestra cifra N.
-; ¡Testea TODAS las capacidades del procesador y las 11 instrucciones del ISA!
+; sqrt.asm - GPR Modernized Version
+; Algoritmo: Raíz Cuadrada Entera (Método de restas de impares)
+; R0: N (Valor a reducir)
+; R1: Odd (1, 3, 5, 7...)
+; R2: Root (Contador del resultado)
+; R3: Temporal / Constantes
 
-; --- MEMORIA DE CONSTANTES ---
-LDI 1 
-STA 201      ; Mem[201] = 1 (Constante)
-LDI 2 
-STA 202      ; Mem[202] = 2 (Constante)
+; --- Inicialización ---
+LDI R0, 225   ; N = 225
+LDI R1, 1     ; Odd = 1
+LDI R2, 0     ; Root = 0
+LDI R3, 2     ; Constante incrementador
 
-; --- INICIALIZACION DE VARIABLES ---
-LDI 225      ; N = 225 (Queremos encontrar la raiz cuadrada de 225. Debe ser 15)
-STA 100      ; Mem[100] = N
-LDI 1       
-STA 101      ; Mem[101] = Odd (Siguiente impar a restar: 1, 3, 5, 7...)
-LDI 0       
-STA 102      ; Mem[102] = Root (Contador de raiz, empieza en 0)
+; --- Main Loop (Addr: 8) ---
+SUB R0, R1    ; R0 = R0 - R1
+JZ  28        ; Raiz perfecta -> FOUND
+JC  16        ; Seguir restando -> CONTINUE
+JMP 32        ; Terminar -> END
 
-; --- MAIN LOOP ---
-LDA 100      ; 20: Carga N
-SUB 101      ; 22: ALU ejecuta N - Odd
-JZ 50        ; 24: [Z Flag]: Si N - Odd = 0 -> Saltar a PERFECT_ROOT a la dir 50
-JC 30        ; 26: [C Flag]: Si Carry=1 (N >= Odd) -> Saltar a CONTINUE a la dir 30
-JMP 62       ; 28: [Default]: Si Carry=0 (N < Odd) -> Saltar a END a la dir 62
+; --- CONTINUE (Addr: 16) ---
+LDI R3, 1
+ADD R2, R3    ; Root++
+OUT R2        ; Mostrar progreso
+LDI R3, 2
+ADD R1, R3    ; Odd += 2
+JMP 8         ; Repeat loop
 
-; --- CONTINUE BLOCK (Dir 30) ---
-STA 100      ; Guardar N de vuelta (descontado)
+; --- FOUND (Addr: 28) ---
+LDI R3, 1
+ADD R2, R3    ; Contar ultima iteración
 
-LDA 102      ; Carga Root actual
-ADD 201      ; Root = Root + 1 (Aumentar el contador de raíz)
-STA 102      
-
-LDA 101      ; Carga Odd actual
-ADD 202      ; Odd = Odd + 2 (Generar el siguiente número impar en la escalera)
-STA 101      
-
-LDA 102      
-OUT          ; Muestra el progreso
-JMP 20       ; Volver al loop (no cabe un NOP acá, ocupa 2 bytes)
-
-; --- PERFECT ROOT BLOCK (Dir 50) ---
-STA 100      ; Actualiza N a 0
-LDA 102      
-ADD 201      
-STA 102      ; Suma el iterador 1 última vez marcando la raiz
-
-NOP          ; Ciclo para reajustar los latches térmicamente
-JMP 62       ; Enviar la raiz encontrada al End (Dir 62)
-
-; --- END BLOCK (Dir 62) ---
-LDA 102      ; Entra la raiz descubierta final
-OUT          ; Muestra la Raiz
-HLT          ; Detener la ejecución
+; --- END (Addr: 32) ---
+OUT R2        ; Mostrar Raiz Final
+HLT

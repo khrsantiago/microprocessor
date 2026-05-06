@@ -1,36 +1,35 @@
 ; fibo.asm - Secuencia de Fibonacci hasta 233
-; 0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233
-; Algoritmo:
-; A = 0, B = 1
-; Límite = 233
+; R0: fib(n), R1: fib(n+1), R2: temporal, R3: limite (233)
+;
+; Nota: Se incluyen NOPs para evitar riesgos de datos (Hazards) en el pipeline
+; ya que algunas instrucciones consecutivas dependen del resultado anterior.
 
-LDI 0
-STA 250    ; Mem[250] es 'A' (anterior)
-LDI 1
-STA 251    ; Mem[251] es 'B' (actual)
+LDI R0 0
+LDI R1 1
+LDI R3 233
 
-LDI 233
-STA 253    ; Mem[253] es el Limite (233)
+; --- LOOP (Addr: 6) ---
+OUT R0
+LDI R2 0         ; Usar R2 para comparar R0 con el límite sin destruir R0
+NOP
+ADD R2 R0        ; R2 = R0
+SUB R2 R3        ; R2 = R0 - 233
+NOP              ; Bubble para flags
+JZ 44            ; Si R0 era 233, terminar (HLT en Addr 44)
 
-; --- INICIO DEL BUCLE (Dirección 12) ---
-LDA 250    ; Carga A
-OUT        ; Muestra el número actual de la secuencia
+LDI R2 0         ; Reiniciar R2 para el cálculo de la suma
+NOP
+ADD R2 R0
+NOP
+ADD R2 R1        ; R2 = R0 + R1 (siguiente)
 
-; Verificar si el valor recién impreso es 233
-LDA 250
-SUB 253    ; Si A == 233, entonces A - 233 = 0, activa Zero Flag
-JZ 38      ; Si es 0, saltar a HLT (Direccion 38)
+LDI R0 0
+NOP
+ADD R0 R1        ; R0 = viejo R1
 
-LDA 250    ; Volver a cargar A
-ADD 251    ; Suma A + B
-STA 252    ; Guarda temporalmente la suma en Mem[252]
+LDI R1 0
+NOP
+ADD R1 R2        ; R1 = nuevo fib
+JMP 6            ; Repetir loop (Addr 6)
 
-LDA 251    ; Trae B
-STA 250    ; Ahora B es el nuevo A (desplazamiento)
-
-LDA 252    ; Trae la Suma
-STA 251    ; Ahora la Suma es el nuevo B
-
-JMP 12     ; Repetir infinitamente
-
-HLT        ; Detener la ejecución (Dirección 38)
+HLT              ; Addr 44

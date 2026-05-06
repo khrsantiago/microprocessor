@@ -1,6 +1,6 @@
-# SAP-1 a 8-Bits: Evolución de Arquitectura en SystemC
+# KHR-8 a 8-Bits: Evolución de Arquitectura en SystemC
 
-Este proyecto es una evolución del microprocesador **SAP-1 (Simple As Possible 1)** de Albert Paul Malvino, diseñado e implementado 100% en C++ usando el framework **SystemC** a nivel RTL (Register Transfer Level).
+Este proyecto es una evolución del microprocesador **KHR-8 (Simple As Possible 1)** de Albert Paul Malvino, diseñado e implementado 100% en C++ usando el framework **SystemC** a nivel RTL (Register Transfer Level).
 
 El proyecto original limitaba el procesador a un diseño restringido de 4/8-bits (memoria de 16-bytes y bus de 8-bits), pero ha sido **evolucionado a una verdadera arquitectura de 8 bits discretos** capaz de direccionar mucha más memoria, realizar cálculos más pesados y despachar instrucciones más complejas mediante un formato Dual-Fetch.
 

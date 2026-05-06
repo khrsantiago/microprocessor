@@ -1,9 +1,15 @@
-; resta.asm - Resta de 10 - 7
-LDI 10   ; Carga el minuendo (10) directamente
-STA 200   ; Lo guarda en memoria (opcional, solo para demo)
-LDI 7    ; Carga el sustraendo (7)
-STA 201   ; Lo guarda en memoria
-LDA 200   ; Vuelve a traer el 10 al Acumulador
-SUB 201   ; Resta el valor en 201 (10 - 7)
-OUT      ; Muestra 3
-HLT
+; sub.asm - Prueba de restas (Positiva y Negativa)
+
+; 1. Resta positiva: 10 - 7 = 3
+LDI R0, 10
+LDI R1, 7
+SUB R0, R1
+OUT R0       ; Debería mostrar 3
+
+; 2. Resta negativa: 7 - 10 = -3
+LDI R0, 7
+LDI R1, 10
+SUB R0, R1
+OUT R0       ; Debería mostrar -3 (o 253 en formato sin signo)
+
+HLT          ; Fin del programa

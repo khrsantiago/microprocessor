@@ -1,14 +1,3 @@
-/*
-Familia | Mnemónico | OpCode (Binario) | OpCode (Hex) |     Operando     | Descripción (Contrato Lógico)
-──────────────────────────────────────────────────────────────────────────────────────────────────
-Control |    NOP    |       0000       |      0x0     |     Ignorado     | No hace nada (No Operation). Útil para inicializar la RAM.
-Memoria |    LDA    |       0001       |      0x1     | Dirección (0-15) | Load A: Lee la RAM en la [Dirección] y la guarda en el Reg A.
-    ALU |    ADD    |       0010       |      0x2     | Dirección (0-15) | Suma: Suma el valor de la RAM en la [Dirección] al Reg A.
-    ALU |    SUB    |       0011       |      0x3     | Dirección (0-15) | Resta: Resta el valor de la RAM en la [Dirección] al Reg A.
-    I/O |    OUT    |       1110       |      0xE     |     Ignorado     | Salida: Envía el valor actual del Reg A al exterior.
-Control |    HLT    |       1111       |      0xF     |     Ignorado     | Halt: Detiene el reloj del procesador. Fin del programa.
-*/
-
 #ifndef ISA_H
 #define ISA_H
 
@@ -21,22 +10,32 @@ Control |    HLT    |       1111       |      0xF     |     Ignorado     | Halt:
  * Formato de Instrucción de 16 bits (Dual-fetch): [OpCode: 8-bit] [Operand: 8-bit]
  */
 enum OpCode {
-    OP_NOP = 0x0, // 0000 - No Operation
-    OP_LDA = 0x1, // 0001 - Load Accumulator
-    OP_ADD = 0x2, // 0010 - Add to Accumulator
-    OP_SUB = 0x3, // 0011 - Subtract from Accumulator
-    OP_LDI = 0x4, // 0100 - Load Immediate
-    OP_STA = 0x5, // 0101 - Store Accumulator to RAM
-    OP_TAX = 0x6, // 0110 - Transfer A to X
-    OP_TXA = 0x7, // 0111 - Transfer X to A
-    OP_LDA_X = 0xB, // 1011 - Load Accumulator using RAM[X]
-    OP_STA_X = 0xC, // 1100 - Store Accumulator into RAM[X]
-    OP_OUT = 0xE, // 1110 - Output Accumulator
-    OP_JMP = 0x8, // 1000: Jump (Salto incondicional)
-    OP_JZ  = 0x9, // 1001: Salto Condicional (Jump if Zero)
-    OP_JC  = 0xA, // 1010: Salto Condicional (Jump if Carry)
-    OP_HLT = 0xF  // 1111 - Halt Processor
+    OP_NOP = 0x00, // No Operation
+    
+    // Load/Store (Dest/Source specified in low 2 bits of opcode)
+    OP_LD_R0 = 0x10, OP_LD_R1 = 0x11, OP_LD_R2 = 0x12, OP_LD_R3 = 0x13, // LD Rd, [Addr]
+    OP_LDI_R0 = 0x20, OP_LDI_R1 = 0x21, OP_LDI_R2 = 0x22, OP_LDI_R3 = 0x23, // LDI Rd, Imm
+    OP_ST_R0 = 0x30, OP_ST_R1 = 0x31, OP_ST_R2 = 0x32, OP_ST_R3 = 0x33, // ST [Addr], Rs
+
+    // Register-Register Arithmetic (Rd and Rs encoded in operand byte)
+    OP_ADD_RR = 0x60, // ADD Rd, Rs -> Operand: [Rd:4][Rs:4]
+    OP_SUB_RR = 0x70, // SUB Rd, Rs -> Operand: [Rd:4][Rs:4]
+
+    // Control & IO
+    OP_JMP = 0x80, // JMP Addr
+    OP_JZ  = 0x90, // JZ Addr
+    OP_JC  = 0xA0, // JC Addr
+    OP_JN  = 0xB0, // JN Addr (Jump if Negative)
+    
+    OP_OUT_R0 = 0xE0, OP_OUT_R1 = 0xE1, OP_OUT_R2 = 0xE2, OP_OUT_R3 = 0xE3, // OUT Rs
+    OP_HLT = 0xFF  // Halt
 };
+
+// Helpers for register indexing
+#define REG_R0 0
+#define REG_R1 1
+#define REG_R2 2
+#define REG_R3 3
 
 // En arquitectura de 16 bits discreta no necesitamos mascaras para splittear
 // El Opcode va en un byte entero, el Operando en el siguiente.

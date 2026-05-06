@@ -28,9 +28,22 @@ SC_MODULE(OutputRegister) {
 
     // Proceso para imprimir en la terminal cuando cambie el valor visualizado
     void monitor_output() {
-        std::cout << "\n[DISPLAY] >>> Current Machine Output: " 
-                  << display.read() << " (Decimal) | 0x" 
-                  << std::hex << display.read() << " (Hex) <<<\n\n" << std::dec;
+        int8_t signed_val = (int8_t)display.read().to_uint();
+        std::string green = "\033[1;32m";
+        std::string reset = "\033[0m";
+        
+        std::stringstream ss;
+        ss << "║ [DISPLAY] >>> Output: " << std::dec << (int)signed_val << " (Signed) | "
+           << display.read().to_uint() << " (Unsig) | 0x" 
+           << std::hex << std::uppercase << display.read().to_uint() << " (Hex) <<<";
+        std::string line = ss.str();
+        int target_width = 76; 
+        int padding = target_width - (int)line.length();
+        if (padding < 0) padding = 0;
+
+        std::cout << "\n" << green << "╔═══════════════════════════════════════════════════════════════════════════╗" << reset << "\n";
+        std::cout << green << line << std::string(padding, ' ') << " ║" << reset << "\n";
+        std::cout << green << "╚═══════════════════════════════════════════════════════════════════════════╝" << reset << "\n" << std::dec;
     }
 
     SC_CTOR(OutputRegister) {

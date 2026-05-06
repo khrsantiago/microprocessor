@@ -1,92 +1,129 @@
 #include <systemc.h>
+#include <cstdio>
 #include <iomanip>
 #include <iostream>
 #include <vector>
 #include <string>
 #include <thread>
 #include <chrono>
+#include <limits>
 #include "computer_top.h"
 #include "assembler.h"
 #include "isa_helper.h"
 
-// Clase para manejar el historial de ejecución
 struct TraceEntry {
     int addr;
-    std::string mnemonic;
+    std::string full_text;
+    int opcode;
     int operand;
     std::string result;
+    int ticks_elapsed;
+    bool logged;
 };
 
 std::vector<TraceEntry> g_history;
 std::string g_last_output = "N/A";
-int g_delay_ms = 250; // Intervalo interactivo predeterminado
+int g_delay_ms = 250; 
 
 void render_dashboard(ComputerTop& comp, bool live_mode) {
-    if (!live_mode) return;
-
-    // Limpiar pantalla y mover cursor al inicio
-    std::cout << "\033[2J\033[H";
+    if (live_mode) {
+        // Limpiar pantalla y mover cursor al inicio
+        std::cout << "\033[2J\033[H" << std::flush;
+    }
 
     std::cout << IsAHelper::BOLD << IsAHelper::CYAN 
-              << "===============================================================" << std::endl;
-    std::cout << "             SAP-1 INTERACTIVE DASHBOARD (8-Bit)" << std::endl;
-    std::cout << "===============================================================" << IsAHelper::RESET << std::endl;
+              << "╔═══════════════════════════════════════════════════════════════════════════╗" << std::endl;
+    std::cout << "║                     KHR-8 LIVE PIPELINE VISUALIZER                        ║" << std::endl;
+    std::cout << "╚═══════════════════════════════════════════════════════════════════════════╝" << IsAHelper::RESET << std::endl;
 
-    // 1. Panel de Registros (Hardware)
-    unsigned int pc = comp.s_pc_to_bus.read().to_uint();
-    unsigned char regA = comp.s_rega_out.read().to_uint();
-    unsigned char regX = comp.s_regx_out.read().to_uint();
-    int state = comp.Cu->current_state.read() + 1;
-    bool z_flag = comp.s_alu_zero_flag.read();
+    // 1. Panel de Registros (Interpretado como signed 8-bit)
+    signed char r0 = (signed char)comp.s_rf_r0.read().to_uint();
+    signed char r1 = (signed char)comp.s_rf_r1.read().to_uint();
+    signed char r2 = (signed char)comp.s_rf_r2.read().to_uint();
+    signed char r3 = (signed char)comp.s_rf_r3.read().to_uint();
+    bool z_flag = comp.s_flags_z.read();
+    bool c_flag = comp.s_flags_c.read();
+    bool n_flag = comp.s_flags_n.read();
+    bool v_flag = comp.s_flags_o.read();
+    unsigned char mar = comp.s_mar_to_ram.read().to_uint();
+    unsigned char ram = comp.s_ram_to_bus.read().to_uint();
 
-    std::cout << IsAHelper::BOLD << " REGISTROS: " << IsAHelper::RESET;
-    std::cout << "[PC: 0x" << std::hex << std::setw(2) << std::setfill('0') << pc << std::dec << std::setfill(' ') << "] ";
-    std::cout << "[RegA: " << std::dec << (int)regA << "] ";
-    std::cout << "[RegX: " << std::dec << (int)regX << "] ";
-    std::cout << "[Zero: " << (z_flag ? "TRUE" : "FALSE") << "] ";
-    std::cout << "[Ciclo: T" << state << "]" << std::endl;
-    
-    std::cout << IsAHelper::CYAN << "---------------------------------------------------------------" << IsAHelper::RESET << std::endl;
+    std::cout << IsAHelper::BOLD << "  SYSTEM STATE: " << IsAHelper::RESET;
+    std::cout << "[R0:" << std::setw(4) << (int)r0 << "] [R1:" << std::setw(4) << (int)r1 << "] [R2:" << std::setw(4) << (int)r2 << "] [R3:" << std::setw(4) << (int)r3 << "] " << std::endl;
+    std::cout << "  " << IsAHelper::CYAN << std::string(16, '.') << IsAHelper::RESET;
+    std::cout << " [Flags Z:" << z_flag << " C:" << c_flag << " N:" << n_flag << " V:" << v_flag << "] ";
+    std::cout << "[MAR:" << std::setw(2) << (int)mar << "] [RAM:" << std::setw(3) << (int)ram << "] ";
+    std::cout << "[Bus:" << std::setw(3) << (int)comp.common_bus.read().to_uint() << "]" << std::endl;
+    std::cout << IsAHelper::CYAN << "  " << std::string(75, '-') << IsAHelper::RESET << std::endl;
 
-    // 2. Historial de Ejecución (Software)
-    std::cout << IsAHelper::YELLOW << " HISTORIAL RECIENTE:" << IsAHelper::RESET << std::endl;
-    int start = (g_history.size() > 5) ? g_history.size() - 5 : 0;
-    for (size_t i = start; i < g_history.size(); ++i) {
-        bool is_last = (i == g_history.size() - 1);
-        std::cout << (is_last ? "  > " : "    ") 
-                  << "0x" << std::hex << std::setw(2) << std::setfill('0') << g_history[i].addr 
-                  << std::dec << std::setfill(' ') << ": "
-                  << std::left << std::setw(4) << g_history[i].mnemonic 
-                  << std::setw(3) << g_history[i].operand;
-        if (!g_history[i].result.empty()) {
-            std::cout << IsAHelper::CYAN << " │ " << g_history[i].result << IsAHelper::RESET;
+    // 2. Pipeline Stages (Reading directly from hardware for perfect sync)
+    struct Stage {
+        std::string name;
+        std::string color;
+        int pc;
+        int opcode;
+        int operand;
+    };
+
+    std::vector<Stage> stages = {
+        {"FETCH  (IF)", IsAHelper::BLUE,   (int)comp.s_if_pc_dbg.read().to_uint(), (int)comp.s_if_opcode_dbg.read().to_uint(), (int)comp.s_if_operand_dbg.read().to_uint()},
+        {"DECODE (ID)", IsAHelper::YELLOW, (int)comp.s_id_pc_dbg.read().to_uint(), (int)comp.s_id_opcode.read().to_uint(),     (int)comp.s_id_operand.read().to_uint()},
+        {"EXEC   (EX)", IsAHelper::CYAN,   (int)comp.s_ex_pc_dbg.read().to_uint(), (int)comp.s_ex_opcode_dbg.read().to_uint(), (int)comp.s_ex_operand_dbg.read().to_uint()},
+        {"WBACK  (WB)", IsAHelper::GREEN,  (int)comp.s_wb_pc_dbg.read().to_uint(), (int)comp.s_wb_opcode_dbg.read().to_uint(), (int)comp.s_wb_operand_dbg.read().to_uint()}
+    };
+
+    std::cout << IsAHelper::BOLD << "  PIPELINE FLOW:" << IsAHelper::RESET << std::endl;
+    for(int i=0; i<4; i++) {
+        std::cout << "  " << stages[i].color << std::left << std::setw(12) << stages[i].name << IsAHelper::RESET;
+        
+        bool is_nop = (stages[i].opcode == 0 && stages[i].operand == 0 && stages[i].pc == 0);
+        // Special case for initial state or empty stages
+        if (stages[i].pc == 0 && stages[i].opcode == 0 && i > 0) is_nop = true; 
+
+        if (!is_nop) {
+            std::string instr_text = IsAHelper::get_instruction_text(stages[i].opcode, stages[i].operand);
+            std::cout << " | [PC: " << std::setw(2) << stages[i].pc << "] Instruction: " << IsAHelper::BOLD << std::left << std::setw(18) << instr_text << IsAHelper::RESET;
+            if (i == 2) { // EXEC Stage
+                 bool is_mem = ((stages[i].opcode & 0xF0) == 0x10 || (stages[i].opcode & 0xF0) == 0x30);
+                 if (is_mem) {
+                     std::cout << " | MAR: " << std::setw(2) << (int)mar << " | RAM: " << std::setw(3) << (int)ram;
+                 } else {
+                     std::cout << " | MAR: -- | RAM: ---";
+                 }
+            }
+        } else {
+            std::cout << " | [PC: --] Instruction: ---               ";
         }
         std::cout << std::endl;
     }
-    
-    for (size_t i = (g_history.size() - start); i < 5; ++i) std::cout << std::endl; // Padding
 
-    std::cout << IsAHelper::CYAN << "---------------------------------------------------------------" << IsAHelper::RESET << std::endl;
-
-    // 3. Salida de Pantalla
-    std::cout << IsAHelper::GREEN << " ÚLTIMA SALIDA (OUT): " << IsAHelper::BOLD 
-              << g_last_output << IsAHelper::RESET << std::endl;
-    std::cout << IsAHelper::CYAN << "===============================================================" << IsAHelper::RESET << std::endl;
-    
-    std::this_thread::sleep_for(std::chrono::milliseconds(g_delay_ms)); // Paso visible
+    // 3. Resultados
+    std::string last_res = "Idle";
+    for(int i = (int)g_history.size()-1; i>=0; i--) {
+        if (!g_history[i].result.empty() && g_history[i].ticks_elapsed >= 3) {
+            last_res = g_history[i].result;
+            break;
+        }
+    }
+    std::cout << IsAHelper::CYAN << "  " << std::string(75, '-') << IsAHelper::RESET << std::endl;
+    std::cout << "  " << IsAHelper::GREEN << "LATEST WB RESULT: " << IsAHelper::BOLD << last_res << IsAHelper::RESET;
+    std::cout << "  |  " << IsAHelper::YELLOW << "OUTPUT (OUT): " << IsAHelper::BOLD << g_last_output << IsAHelper::RESET << std::endl;
+    std::cout << IsAHelper::CYAN << "  " << std::string(75, '=') << IsAHelper::RESET << std::endl;
 }
 
 int sc_main(int argc, char* argv[]) {
     if (argc < 2) {
-        std::cout << "Uso: " << argv[0] << " <archivo.asm> [--live]\n";
+        std::cout << "Uso: " << argv[0] << " <archivo.asm> [--live] [--manual]\n";
         return 1;
     }
 
     bool live_mode = false;
+    bool manual_mode = false;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg == "--live") live_mode = true;
-        else if (arg == "--fast") g_delay_ms = 20; // Modalidad Turbo
+        else if (arg == "--manual") { live_mode = true; manual_mode = true; }
+        else if (arg == "--fast") g_delay_ms = 20;
         else if (arg.find("--delay=") == 0) g_delay_ms = std::stoi(arg.substr(8));
     }
 
@@ -98,16 +135,8 @@ int sc_main(int argc, char* argv[]) {
     Computer.clk(clk);
     Computer.reset(reset);  
 
-    if (!AssemblerLoader::load(argv[1], Computer.Ram->memory)) {
+    if (!AssemblerLoader::load(argv[1], Computer.DataRam->memory) || !AssemblerLoader::load(argv[1], Computer.InstRom->memory)) {
         return 1;
-    }
-
-    if (!live_mode) {
-        std::cout << IsAHelper::BOLD << IsAHelper::CYAN 
-                << "\n==============================================" << std::endl;
-        std::cout << "   SAP-1 HUMAN VISUALIZER v2.1 (8-Bit)" << std::endl;
-        std::cout << "==============================================" << IsAHelper::RESET << std::endl;
-        std::cout << "Archivo: " << IsAHelper::YELLOW << argv[1] << IsAHelper::RESET << "\n" << std::endl;
     }
 
     reset.write(1);
@@ -116,86 +145,118 @@ int sc_main(int argc, char* argv[]) {
 
     bool halted = false;
 
-    // Aumentamos gigantescamente el límite para sostener loops anidados (20 Millones en lugar de 20 Mil)
-    for(unsigned long i = 0; i < 20000000 && !halted; i++) {
+    // 0. Mostrar estado inicial (tras Reset)
+    render_dashboard(Computer, live_mode);
+    if (live_mode && manual_mode) {
+        std::cout << IsAHelper::YELLOW << "  [MANUAL] Presiona ENTER para iniciar la ejecución..." << std::flush;
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+    }
+
+    // Loop de Ejecución Principal
+    for(unsigned long cycle = 0; cycle < 2000 && !halted; cycle++) {
         sc_start(10, SC_NS);
         
-        int state = Computer.Cu->current_state.read() + 1;
-        unsigned int pc = Computer.s_pc_to_bus.read().to_uint();
-        unsigned char opcode = Computer.s_ir_opcode.read().to_uint();
-        unsigned char operand = Computer.s_ir_operand.read().to_uint();
+        // 1. Progresar Pipeline
+        for (auto& hist_entry : g_history) {
+            hist_entry.ticks_elapsed++;
+            
+            if (hist_entry.ticks_elapsed == 3 && !hist_entry.logged) {
+                hist_entry.logged = true;
+                int opc = hist_entry.opcode;
+                unsigned char r0_u = Computer.s_rf_r0.read().to_uint();
+                unsigned char r1_u = Computer.s_rf_r1.read().to_uint();
+                unsigned char r2_u = Computer.s_rf_r2.read().to_uint();
+                unsigned char r3_u = Computer.s_rf_r3.read().to_uint();
 
-        // 1. Capturar Nueva Instrucción (T7)
-        if (state == 7) {
-            int display_addr = (int)pc - 2;
-            if (display_addr < 0) display_addr = 0;
+                if ((opc & 0xF0) == 0x10 || (opc & 0xF0) == 0x20) { // LD/LDI
+                    int r_idx = opc & 0x03;
+                    signed char val = (r_idx==0)?(signed char)r0_u:(r_idx==1)?(signed char)r1_u:(r_idx==2)?(signed char)r2_u:(signed char)r3_u;
+                    hist_entry.result = "R" + std::to_string(r_idx) + " <- " + std::to_string((int)val);
+                } else if (opc == OP_ADD_RR || opc == OP_SUB_RR) {
+                    int rd = (hist_entry.operand >> 4) & 0x03;
+                    hist_entry.result = "R" + std::to_string(rd) + " UPD";
+                } else if (opc >= 0xE0 && opc <= 0xE3) { // OUT
+                    int r_idx = opc & 0x03;
+                    signed char val = (r_idx==0)?(signed char)r0_u:(r_idx==1)?(signed char)r1_u:(r_idx==2)?(signed char)r2_u:(signed char)r3_u;
+                    unsigned char uval = (unsigned char)val;
+                    char hex_buf[10];
+                    sprintf(hex_buf, "0x%X", uval);
+                    g_last_output = std::to_string((int)val) + " (Signed) | " + std::to_string((int)uval) + " (Unsig) | " + std::string(hex_buf) + " (Hex)";
+                }
+            }
+        }
+
+        // 2. Logging de nueva instrucción (Solo para el historial de resultados)
+        if (Computer.s_pc_en.read() == 1) {
+            unsigned int pc = Computer.s_id_pc_dbg.read().to_uint();
+            unsigned char opcode = Computer.s_id_opcode.read().to_uint();
+            unsigned char operand = Computer.s_id_operand.read().to_uint();
 
             TraceEntry entry;
-            entry.addr = display_addr;
-            entry.mnemonic = IsAHelper::get_mnemonic(opcode);
+            entry.addr = (int)pc;
+            entry.full_text = IsAHelper::get_instruction_text(opcode, operand);
+            entry.opcode = opcode;
             entry.operand = (int)operand;
+            entry.ticks_elapsed = 1; // Ya está en ID
+            entry.logged = false;
             g_history.push_back(entry);
-
-            if (!live_mode) {
-                std::cout << IsAHelper::BLUE << "[PASO] " << IsAHelper::RESET
-                        << "Dirección 0x" << std::hex << std::setw(2) << std::setfill('0') << display_addr 
-                        << std::dec << std::setfill(' ') << ": " << IsAHelper::BOLD << entry.mnemonic 
-                        << " " << entry.operand << IsAHelper::RESET << std::endl;
-            }
             
-            if (opcode == 0 && display_addr > 128) halted = true; // Safety IDLE stop
+            if (opcode == OP_HLT) halted = true;
         }
 
-        // 2. Registrar Resultados (T12)
-        if (state == 12 && !g_history.empty()) {
-            std::string res = "";
-            if (opcode == OP_LDA || opcode == OP_LDI || opcode == OP_ADD || opcode == OP_SUB || opcode == OP_TXA || opcode == OP_LDA_X) {
-                res = "RegA -> " + std::to_string(Computer.s_rega_out.read().to_uint());
-            } else if (opcode == OP_TAX) {
-                res = "RegX -> " + std::to_string(Computer.s_regx_out.read().to_uint());
-            } else if (opcode == OP_STA) {
-                res = "Mem[" + std::to_string(operand) + "] <- " + std::to_string(Computer.s_rega_out.read().to_uint());
-            } else if (opcode == OP_STA_X) {
-                res = "Mem[X(" + std::to_string(Computer.s_regx_out.read().to_uint()) + ")] <- " + std::to_string(Computer.s_rega_out.read().to_uint());
-            } else if (opcode == OP_JMP || (opcode == OP_JZ && Computer.s_alu_zero_flag.read()) || (opcode == OP_JC && Computer.s_latched_carry.read())) {
-                res = "SALTO!";
-            }
-            g_history.back().result = res;
-
-            if (!live_mode && !res.empty()) {
-                std::cout << "       " << IsAHelper::CYAN << "└─> " << res << IsAHelper::RESET << std::endl;
+        render_dashboard(Computer, live_mode);
+        if (live_mode) {
+            if (manual_mode) {
+                std::cout << IsAHelper::YELLOW << "  [MANUAL] Presiona ENTER para el siguiente ciclo..." << std::flush;
+                std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            } else {
+                std::this_thread::sleep_for(std::chrono::milliseconds(g_delay_ms));
             }
         }
+        
+        if (halted) break;
+    }
 
-        // 3. Salida a Consola (T8)
-        if (opcode == OP_OUT && state == 8) {
-            g_last_output = std::to_string(Computer.s_rega_out.read().to_uint());
-            if (!live_mode) {
-                std::cout << IsAHelper::YELLOW << IsAHelper::BOLD 
-                        << "\n[SALIDA] >>> " << g_last_output << " <<<\n" << IsAHelper::RESET << std::endl;
+    // Pipeline Draining tras HLT
+    for(int drain=0; drain<4; drain++) {
+        sc_start(10, SC_NS);
+        for (auto& hist_entry : g_history) {
+            hist_entry.ticks_elapsed++;
+            if (hist_entry.ticks_elapsed == 3 && !hist_entry.logged) {
+                hist_entry.logged = true;
+                int opc = hist_entry.opcode;
+                unsigned char r0_u = Computer.s_rf_r0.read().to_uint();
+                unsigned char r1_u = Computer.s_rf_r1.read().to_uint();
+                unsigned char r2_u = Computer.s_rf_r2.read().to_uint();
+                unsigned char r3_u = Computer.s_rf_r3.read().to_uint();
+
+                if (opc == OP_ADD_RR || opc == OP_SUB_RR) {
+                    int rd = (hist_entry.operand >> 4) & 0x03;
+                    hist_entry.result = "R" + std::to_string(rd) + " UPD";
+                } else if (opc >= 0xE0 && opc <= 0xE3) {
+                    int r_idx = opc & 0x03;
+                    signed char val = (r_idx==0)?(signed char)r0_u:(r_idx==1)?(signed char)r1_u:(r_idx==2)?(signed char)r2_u:(signed char)r3_u;
+                    unsigned char uval = (unsigned char)val;
+                    char hex_buf[10];
+                    sprintf(hex_buf, "0x%X", uval);
+                    g_last_output = std::to_string((int)val) + " (Signed) | " + std::to_string((int)uval) + " (Unsig) | " + std::string(hex_buf) + " (Hex)";
+                }
             }
         }
-
-        // 4. Parada (HLT)
-        if (opcode == OP_HLT && state == 7) {
-            halted = true;
-            if (!live_mode) {
-                std::cout << "\n" << IsAHelper::RED << IsAHelper::BOLD 
-                        << "[FIN] Programa terminado por instrucción HLT." << IsAHelper::RESET << std::endl;
+        render_dashboard(Computer, live_mode);
+        if (live_mode) {
+            if (manual_mode) {
+                std::cout << IsAHelper::YELLOW << "  [MANUAL] Presiona ENTER para el siguiente ciclo..." << std::flush;
+                std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            } else {
+                std::this_thread::sleep_for(std::chrono::milliseconds(g_delay_ms));
             }
-        }
-
-        // 5. Refrescar Dashboard si está activo
-        if (live_mode && (state == 1 || state == 7 || state == 12)) {
-            render_dashboard(Computer, live_mode);
         }
     }
 
     if (live_mode) {
-        render_dashboard(Computer, live_mode);
         std::cout << IsAHelper::RED << IsAHelper::BOLD << "\n SIMULACIÓN FINALIZADA." << IsAHelper::RESET << std::endl;
-    } else if (!halted) {
-        std::cout << IsAHelper::RED << "\n[INFO] Simulación finalizada por límite de tiempo." << IsAHelper::RESET << std::endl;
+        std::cout << IsAHelper::BOLD << "Tiempo total de ejecución: " << sc_time_stamp() << IsAHelper::RESET << std::endl;
     }
 
     return 0;
