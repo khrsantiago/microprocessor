@@ -1,5 +1,5 @@
 ; ==========================================================
-; Benchmark KHR-8 (Test de Rendimiento de Pipeline)
+; Benchmark KHR-16 (Test de Rendimiento de Pipeline)
 ; ==========================================================
 ; Este programa mide que tan rapido el procesador ejecuta
 ; un bucle de cuenta regresiva (de 100 a 0).

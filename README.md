@@ -1,58 +1,48 @@
-# KHR-8 a 8-Bits: Evolución de Arquitectura en SystemC
+# KHR-16: Microprocesador Segmentado de 16-bits en SystemC
 
-Este proyecto es una evolución del microprocesador **KHR-8 (Simple As Possible 1)** de Albert Paul Malvino, diseñado e implementado 100% en C++ usando el framework **SystemC** a nivel RTL (Register Transfer Level).
+Este proyecto implementa el microprocesador **KHR-16**, una arquitectura GPR (General Purpose Registers) de 16 bits completamente segmentada (pipelined), implementada en C++ utilizando el framework **SystemC** a nivel RTL.
 
-El proyecto original limitaba el procesador a un diseño restringido de 4/8-bits (memoria de 16-bytes y bus de 8-bits), pero ha sido **evolucionado a una verdadera arquitectura de 8 bits discretos** capaz de direccionar mucha más memoria, realizar cálculos más pesados y despachar instrucciones más complejas mediante un formato Dual-Fetch.
+El KHR-16 evoluciona desde un diseño minimalista hacia una arquitectura moderna con Load-Store, permitiendo ejecutar programas complejos con alta eficiencia gracias a su pipeline de 4 etapas y mecanismos de forwarding de datos.
 
-## 🚀 Cambios de la Evolución (v2.0)
+## 🚀 Características Principales (v16.0)
 
-1. **Expansión Modular**: Todos los registros (`Accumulator`, `PC`, `MAR`, `IR`, `OUT` y `ALU`) y el bus de transferencia interna ahora gestionan **8 bits** completos.
-2. **Capacidad de Memoria**: La RAM creció de 16 Bytes a **256 Bytes**, adoptando `sc_uint<8>` como ancho de direcciones. 
-3. **Instrucciones de 16-bits (Dual-Fetch)**: Las instrucciones pasaron de empaquetarse en 1 byte (4 bits OpCode + 4 bits Operandos) a un espacioso modelo `2-Byte`. El ensamblador genera el Opcode de 8 bits en el byte `N` y el Operando de 8 bits en el byte `N+1`.
-4. **Ciclo Fetch Extendido**: La Unidad de Control (`ControlUnit`) evolucionó su FSM de T1-T6 a **T1-T12**, dividiendo el ciclo Fetch original en dos sub-operaciones sincrónicas para ensamblar la instrucción doble en el Registro de Instrucciones (`InstructionRegister`).
-5. **Zero Flag Latching**: Se agregó un pestillo sincrónico del Flag `Z` directamente ligado a los flancos de recarga del Acumulador para lidiar correctamente con ciclos de máquina inactivos.
+1. **Arquitectura de 16-bits**: Registros, ALU y buses de datos operan con 16 bits completos, permitiendo aritmética de precisión y direccionamiento amplio.
+2. **Pipeline de 4 Etapas**: La ejecución se divide en Fetch (IF), Decode (ID), Execute (EX) y Write-Back (WB).
+3. **Mecanismo de Forwarding**: Incluye lógica de cortocircuito (EX->ID y WB->ID) para resolver hazards de datos y mantener el pipeline lleno.
+4. **GPR Design**: Utiliza un Register File con 4 registros de propósito general (R0-R3).
+5. **Memoria Expandida**: Direccionamiento de 8 bits para una RAM de 256 palabras de 16 bits.
+6. **Entorno Visual**: Dashboard interactivo en tiempo real para observar el flujo de instrucciones y el estado interno del procesador.
 
-## ⚙️ Conjunto de Instrucciones (ISA de 8 Bits)
+## ⚙️ Conjunto de Instrucciones (ISA KHR-16)
 
-| Familia | Mnemónico | OpCode (Hex) | Operando | Descripción |
-| :--- | :--- | :--- | :--- | :--- |
-| Control | `NOP` | `0x00` | Ninguno | No hace nada (No Operation). Desperdicia su turno. |
-| Memoria | `LDA` | `0x01` | Dirección | Load A: Carga en el Reg A el valor guardado en RAM[Dirección]. |
-| ALU | `ADD` | `0x02` | Dirección | Add: Suma RAM[Dirección] al valor alojado en Reg A. |
-| ALU | `SUB` | `0x03` | Dirección | Resta: Resta RAM[Dirección] al valor en Reg A. |
-| Inmed. | `LDI` | `0x04` | Valor (Inmediato) | Carga constante: Guarda explícitamente el valor proveido en el Reg A. |
-| Memoria | `STA` | `0x05` | Dirección | Store A: Sobrescribe la celda RAM[Dirección] con el valor en Reg A. |
-| I/O | `OUT` | `0x0E` | Ninguno | Ejecución Out: Refleja y extrae el valor actual del Reg A al registro pantalla. |
-| Salto | `JMP` | `0x08` | Dirección | Jump incondicional: Redirige el Program Counter (PC) a la Dirección dada. |
-| Salto | `JZ` | `0x09` | Dirección | Jump if Zero: Salta a la Dirección solo si la última instrucción puso en 0 el Reg A. |
-| Salto | `JC` | `0x0A` | Dirección | Jump if Carry: Salta si el último cálculo generó desbordamiento (Bandera Acarreo = 1). |
-| Control | `HLT` | `0x0F` | Ninguno | Halt: Detiene la simulación del procesador irreversiblemente. |
-
-*Nota: Aunque una instrucción como `OUT` o `HLT` no dependa de operandos, siempre consume un segundo byte en memoria (`0x00`) para respetar el alineamiento simétrico de `16-bits` del Program Counter.*
+| Familia | Mnemónico | OpCode (Hex) | Descripción |
+| :--- | :--- | :--- | :--- |
+| **Memoria** | `LD Rd, [Addr]` | `0x10-13` | Carga RAM[Addr] en el registro Rd. |
+| **Inmediato**| `LDI Rd, Imm` | `0x20-23` | Carga un valor inmediato de 16 bits en Rd. |
+| **Memoria** | `ST [Addr], Rs` | `0x30-33` | Guarda el contenido de Rs en RAM[Addr]. |
+| **Indirecto**| `LD Rd, [Rs]` | `0x40-43` | Carga RAM[Rs] en Rd (Punteros). |
+| **Aritmética**| `ADD Rd, Rs` | `0x60` | Rd = Rd + Rs. |
+| **Aritmética**| `SUB Rd, Rs` | `0x70` | Rd = Rd - Rs. |
+| **Mover** | `MOV Rd, Rs` | `0x61` | Rd = Rs. |
+| **Saltos** | `JMP Addr` | `0x80` | Salto incondicional. |
+| **Saltos** | `JZ/JC/JN Addr` | `0x90/A0/B0` | Saltos condicionales (Zero, Carry, Negative). |
+| **Salida** | `OUT Rs` | `0xE0-E3` | Envía el valor de Rs al display de salida. |
+| **Control** | `HLT` | `0xFF` | Detiene la ejecución. |
 
 ## 🛠️ Cómo Compilar y Ejecutar
 
-El proyecto viene provisto con un un pequeño cargador / ensamblador escrito en C++ moderno, un Top-Level Interconnect que une las partes y archivos `.asm` de prueba. 
-
-1. **Requisitos**: Tu ambiente debe correr Linux y tener instalado GNU Make, GCC y SystemC (configurado en la MACRO `SYSTEMC_HOME` en el Makefile, por defecto configurado a `/usr/local/systemc-3.0.2`).
-2. **Compilar proyecto**:
-   Dirígete a la raíz del repositorio y corre:
+1. **Requisitos**: Linux, GNU Make, GCC y SystemC (configurado en `SYSTEMC_HOME`).
+2. **Compilar**:
    ```bash
-   make clean
-   make
+   make clean && make
    ```
-   *Esto compilará todos los módulos y generará un ejecutable final en `bin/test_asm_runner`.*
-
-3. **Ejecutar programas asamblados**:
-   Dentro de la carpeta `asm/` hay varios programas que demuestran software de 8 bits corriendo sobre el procesador: `resta.asm`, `mult.asm`, `div.asm`, y los nuevos **`fibo_16.asm`** y **`sqrt.asm`** (que introducen Aritmética de Múltiple Precisión de 16 bits usando la bandera Carry `JC` para probar algoritmos de la vida real como buscar la raíz cuadrada restando números impares).
-
-   Corre el motor visualizador y observa el registro paso a paso:
+3. **Ejecutar**:
    ```bash
-   ./bin/asm_visualizer asm/sqrt.asm --live
+   ./bin/asm_visualizer asm/fibo_16.asm --live
    ```
 
-   **Opciones para el Dashboard Interactivo (`--live`):**
-   - `--fast`: Modalidad Turbo (baja el retraso entre ciclos lógicos a tan solo 20ms).
-   - `--delay=X`: Modalidad Personalizada (Ej: `--delay=500` ralentiza el sistema a medio segundo por ciclo).
-
-   Verás un volcado asíncrono de cada estado de la máquina, los buses compartidos, las banderas Cero/Carry y un `>>> Current Machine Output: <<<` cada vez que el acumulador active `OUT`.
+## 📊 Visualizador de Pipeline
+El comando `--live` activa un dashboard que muestra:
+- Estado de los registros R0-R3 y Banderas.
+- Contenido de cada etapa del pipeline en tiempo real.
+- Historial de resultados y salida del sistema.

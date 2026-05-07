@@ -1,70 +1,170 @@
-; blinker.asm - Animación Blinker simple para probar VRAM
-; Alterna entre patrón horizontal y vertical usando RegX
-; VRAM 5x5: Direcciones 231-255
-;
-; Precarga de datos
-160: 1
-231: 0
-232: 0
-233: 0
-234: 0
-235: 0
-236: 0
-237: 1
-238: 1
-239: 1
-240: 0
-241: 0
-242: 0
-243: 0
-244: 0
-245: 0
-246: 0
-247: 0
-248: 0
-249: 0
-250: 0
-251: 0
-252: 0
-253: 0
-254: 0
-255: 0
-
-0:
-OUT R0
-
-LOOP:
-; ======= FRAME A -> FRAME B (horizontal -> vertical) =======
-; Borrar 237
-LDI R0, 0
-STA 237, R0
-STA 239, R0
-
-; Pintar columna central (233, 238, 243)
+; blinker.asm - Hardcoded Conway's Blinker for KHR-16
+; Screen: 16x16, VRAM start: 256
+ 
+; Permanent Constants
+LDI R3, 1      ; R3 = 1
+LDI R1, 64
+NOP
+NOP
+ADD R1, R1     ; R1 = 128
+NOP
+NOP
+ADD R1, R1     ; R1 = 256 (Base VRAM)
+NOP
+NOP
+ 
+; Draw Center (136 + 256 = 392)
+LDI R2, 68
+NOP
+NOP
+ADD R2, R2     ; R2 = 136
+NOP
+NOP
+ADD R2, R1     ; R2 = 392
+NOP
+NOP
 LDI R0, 1
-STA 233, R0
-STA 243, R0
-
-NOP
-NOP
-OUT R0
-NOP
-
-; ======= FRAME B -> FRAME A (vertical -> horizontal) =======
-; Borrar columna
-LDI R0, 0
-STA 233, R0
-STA 243, R0
-
-; Pintar fila
-LDI R0, 1
-STA 237, R0
-STA 239, R0
-
-NOP
-NOP
-OUT R0
-NOP
-
-; Loop infinito
-JMP LOOP
+ST [R2], R0    ; Center Pixel ON
+ 
+MAIN:
+    ; === STATE 1: HORIZONTAL (391, 393) ===
+    LDI R0, 1      ; Color ON
+    
+    ; 391
+    LDI R2, 68
+    NOP
+    NOP
+    ADD R2, R2
+    NOP
+    NOP
+    SUB R2, R3     ; 135
+    NOP
+    NOP
+    ADD R2, R1     ; 391
+    NOP
+    NOP
+    ST [R2], R0
+    
+    ; 393
+    LDI R2, 68
+    NOP
+    NOP
+    ADD R2, R2
+    NOP
+    NOP
+    ADD R2, R3     ; 137
+    NOP
+    NOP
+    ADD R2, R1     ; 393
+    NOP
+    NOP
+    ST [R2], R0
+    
+    ; Clear State 2 (376, 408)
+    LDI R0, 0      ; Color OFF
+    
+    ; 376 (120 + 256)
+    LDI R2, 120
+    NOP
+    NOP
+    ADD R2, R1
+    NOP
+    NOP
+    ST [R2], R0
+    
+    ; 408 (152 + 256)
+    LDI R2, 76
+    NOP
+    NOP
+    ADD R2, R2
+    NOP
+    NOP
+    ADD R2, R1
+    NOP
+    NOP
+    ST [R2], R0
+    
+    LDI R0, 1      ; Restore ON for OUT
+    OUT R0
+    
+    ; Delay
+    LDI R2, 20
+D1:
+    SUB R2, R3
+    NOP
+    NOP
+    JZ D1E
+    JMP D1
+D1E:
+ 
+    ; === STATE 2: VERTICAL (376, 408) ===
+    LDI R0, 1      ; Color ON
+    
+    ; 376
+    LDI R2, 120
+    NOP
+    NOP
+    ADD R2, R1
+    NOP
+    NOP
+    ST [R2], R0
+    
+    ; 408
+    LDI R2, 76
+    NOP
+    NOP
+    ADD R2, R2
+    NOP
+    NOP
+    ADD R2, R1
+    NOP
+    NOP
+    ST [R2], R0
+    
+    ; Clear State 1 (391, 393)
+    LDI R0, 0      ; Color OFF
+    
+    ; 391
+    LDI R2, 68
+    NOP
+    NOP
+    ADD R2, R2
+    NOP
+    NOP
+    SUB R2, R3
+    NOP
+    NOP
+    ADD R2, R1
+    NOP
+    NOP
+    ST [R2], R0
+    
+    ; 393
+    LDI R2, 68
+    NOP
+    NOP
+    ADD R2, R2
+    NOP
+    NOP
+    ADD R2, R3
+    NOP
+    NOP
+    ADD R2, R1
+    NOP
+    NOP
+    ST [R2], R0
+    
+    LDI R0, 1
+    OUT R0
+    
+    ; Delay
+    LDI R2, 20
+D2:
+    SUB R2, R3
+    NOP
+    NOP
+    JZ D2E
+    JMP D2
+D2E:
+    
+    JMP MAIN

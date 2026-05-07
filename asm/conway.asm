@@ -1,4 +1,4 @@
-; conway.asm - Conway's Game of Life (KHR-8 GPR Labels Version)
+; conway.asm - Conway's Game of Life (KHR-16 GPR Labels Version)
 ; R0: Acc / Data, R1: Index / Addr, R2: Temp, R3: Flags
 
 ; ============ CONSTANTES ============

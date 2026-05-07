@@ -24,7 +24,7 @@ int sc_main(int argc, char* argv[]) {
         return 1;
     }
 
-    std::cout << "\n--- Iniciando Simulacion de KHR-8 ---\n";
+    std::cout << "\n--- Iniciando Simulacion de KHR-16 ---\n";
     std::cout << "Archivo: " << argv[1] << "\n";
     std::cout << "--------------------------------------------------------------------------\n";
 
@@ -46,53 +46,53 @@ int sc_main(int argc, char* argv[]) {
         unsigned int opr_id = Computer.s_ir_operand.read().to_uint();
         std::cout << IsAHelper::CYAN << "[ " << std::setw(5) << sc_time_stamp() << " ] (Estable)" << IsAHelper::RESET << "\n";
         
-        unsigned int if_op = Computer.s_if_opcode_dbg.read().to_uint();
-        unsigned int if_opr = Computer.s_if_operand_dbg.read().to_uint();
-        std::cout << "  FETCH  (IF) | [PC: " << std::setw(2) << pc_if << "] Instruction: ";
+        uint16_t if_op = Computer.s_if_opcode_dbg.read().to_uint();
+        uint16_t if_opr = Computer.s_if_operand_dbg.read().to_uint();
+        std::cout << "  FETCH  (IF) | [PC: " << std::setw(3) << pc_if << "] Instruction: ";
         if (if_op == OP_ADD_RR || if_op == OP_SUB_RR) {
             std::cout << IsAHelper::get_mnemonic(if_op) << " R" << ((if_opr >> 4) & 0x3) << ", R" << (if_opr & 0x3) << "\n";
         } else {
             std::cout << IsAHelper::get_mnemonic(if_op) << " " << (int)if_opr << "\n";
         }
         
-        std::cout << "  DECODE (ID) | [PC: " << std::setw(2) << pc_id << "] Instruction: ";
+        std::cout << "  DECODE (ID) | [PC: " << std::setw(3) << pc_id << "] Instruction: ";
         if (op_id == OP_ADD_RR || op_id == OP_SUB_RR) {
             std::cout << IsAHelper::get_mnemonic(op_id) << " R" << ((opr_id >> 4) & 0x3) << ", R" << (opr_id & 0x3) << "\n";
         } else {
             std::cout << IsAHelper::get_mnemonic(op_id) << " " << (int)opr_id << "\n";
         }
         
-        std::cout << "  EXEC   (EX) | [PC: " << std::setw(2) << pc_ex << "] Instruction: ";
-        unsigned int ex_op = Computer.s_ex_opcode_dbg.read().to_uint();
-        unsigned int ex_opr = Computer.s_ex_operand_dbg.read().to_uint();
+        std::cout << "  EXEC   (EX) | [PC: " << std::setw(3) << pc_ex << "] Instruction: ";
+        uint16_t ex_op = Computer.s_ex_opcode_dbg.read().to_uint();
+        uint16_t ex_opr = Computer.s_ex_operand_dbg.read().to_uint();
         if (ex_op == OP_ADD_RR || ex_op == OP_SUB_RR) {
              std::cout << IsAHelper::get_mnemonic(ex_op) << " R" << ((ex_opr >> 4) & 0x3) << ", R" << (ex_opr & 0x3) << "   ";
         } else {
-             std::cout << std::left << std::setw(6) << IsAHelper::get_mnemonic(ex_op) << " " << std::left << std::setw(3) << ex_opr;
+             std::cout << std::left << std::setw(6) << IsAHelper::get_mnemonic(ex_op) << " " << std::left << std::setw(5) << ex_opr;
         }
 
-        // Solo mostrar MAR/RAM si es una instrucción de memoria (LD=0x10, ST=0x30)
-        bool ex_is_mem = ((ex_op & 0xF0) == 0x10 || (ex_op & 0xF0) == 0x30);
+        // Solo mostrar MAR/RAM si es una instrucción de memoria
+        bool ex_is_mem = ((ex_op & 0xF0) == 0x10 || (ex_op & 0xF0) == 0x30 || (ex_op & 0xF0) == 0x40 || (ex_op & 0xF0) == 0x50);
         if (ex_is_mem) {
-            std::cout << " | MAR: " << std::right << std::setw(2) << (int)Computer.s_mar_to_ram.read().to_uint() 
-                      << " | RAM: " << std::setw(3) << (int)Computer.s_ram_to_bus.read().to_uint() << "\n";
+            std::cout << " | MAR: " << std::right << std::setw(4) << (int)Computer.s_ex_ram_addr.read().to_uint() 
+                      << " | RAM: " << std::setw(5) << (int)Computer.s_ram_to_bus.read().to_uint() << "\n";
         } else {
             std::cout << " | MAR: -- | RAM: ---" << "\n";
         }
         
-        std::cout << "  WBACK  (WB) | [PC: " << std::setw(2) << pc_wb << "] Instruction: ";
-        unsigned int wb_op = Computer.s_wb_opcode_dbg.read().to_uint();
-        unsigned int wb_opr = Computer.s_wb_operand_dbg.read().to_uint();
+        std::cout << "  WBACK  (WB) | [PC: " << std::setw(3) << pc_wb << "] Instruction: ";
+        uint16_t wb_op = Computer.s_wb_opcode_dbg.read().to_uint();
+        uint16_t wb_opr = Computer.s_wb_operand_dbg.read().to_uint();
         if (wb_op == OP_ADD_RR || wb_op == OP_SUB_RR) {
              std::cout << IsAHelper::get_mnemonic(wb_op) << " R" << ((wb_opr >> 4) & 0x3) << ", R" << (wb_opr & 0x3) << "   ";
         } else {
-             std::cout << std::left << std::setw(6) << IsAHelper::get_mnemonic(wb_op) << " " << std::left << std::setw(3) << wb_opr;
+             std::cout << std::left << std::setw(6) << IsAHelper::get_mnemonic(wb_op) << " " << std::left << std::setw(5) << wb_opr;
         }
-        std::cout << " | R0:" << std::setw(2) << (int)Computer.s_rf_r0.read().to_uint() 
-                  << " R1:" << std::setw(2) << (int)Computer.s_rf_r1.read().to_uint()
-                  << " R2:" << std::setw(2) << (int)Computer.s_rf_r2.read().to_uint()
-                  << " R3:" << std::setw(2) << (int)Computer.s_rf_r3.read().to_uint()
-                  << " | Bus: " << std::setw(3) << (int)Computer.common_bus.read().to_uint() << "\n"
+        std::cout << " | R0:" << std::setw(6) << (int)Computer.s_rf_r0.read().to_uint() 
+                  << " R1:" << std::setw(6) << (int)Computer.s_rf_r1.read().to_uint()
+                  << " R2:" << std::setw(6) << (int)Computer.s_rf_r2.read().to_uint()
+                  << " R3:" << std::setw(6) << (int)Computer.s_rf_r3.read().to_uint()
+                  << " | Bus: 0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(4) << (int)Computer.common_bus.read().to_uint() << std::dec << std::setfill(' ') << "\n"
                   << "                | Flags: Z:" << Computer.s_flags_z.read() << " C:" << Computer.s_flags_c.read() << " N:" << Computer.s_flags_n.read() << " V:" << Computer.s_flags_o.read()
                   << "\n";
 

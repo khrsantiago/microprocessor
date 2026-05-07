@@ -19,10 +19,13 @@ LDI R0 10
 LDI R1 2
 LDI R2 0
 LDI R3 1
-SUB R0 R1  
-JN 18      
-ADD R2 R3  
-JZ 18      
-JMP 8      
-OUT R2     
+LOOP:
+SUB R0 R1
+JN END      ; Si es negativo, terminamos
+ADD R2 R3   ; Incrementar cociente
+JZ END      ; Si es exactamente cero, terminamos
+JMP LOOP    ; Repetir
+ 
+END:
+OUT R2
 HLT        

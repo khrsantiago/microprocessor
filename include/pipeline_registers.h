@@ -13,17 +13,17 @@ SC_MODULE(IF_ID_Reg) {
     sc_in<bool> enable;
     sc_in<bool> flush;
 
-    sc_in<sc_uint<8>> pc_in;
-    sc_in<sc_lv<8>> opcode_in;
-    sc_in<sc_lv<8>> operand_in;
+    sc_in<sc_uint<16>> pc_in;
+    sc_in<sc_lv<16>> opcode_in;
+    sc_in<sc_lv<16>> operand_in;
 
-    sc_out<sc_uint<8>> pc_out;
-    sc_out<sc_lv<8>> opcode_out;
-    sc_out<sc_lv<8>> operand_out;
+    sc_out<sc_uint<16>> pc_out;
+    sc_out<sc_lv<16>> opcode_out;
+    sc_out<sc_uint<16>> operand_out; 
 
-    sc_uint<8> pc_val;
+    sc_uint<16> pc_val;
     sc_lv<8> opcode_val;
-    sc_lv<8> operand_val;
+    sc_lv<16> operand_val;
 
     void update() {
         if (reset.read()) {
@@ -32,6 +32,7 @@ SC_MODULE(IF_ID_Reg) {
             operand_val = "00000000";
         } else if (flush.read()) {
             opcode_val = "00000000"; // NOP
+            operand_val = 0;
         } else if (enable.read()) {
             pc_val = pc_in.read();
             opcode_val = opcode_in.read();
@@ -40,7 +41,13 @@ SC_MODULE(IF_ID_Reg) {
         
         pc_out.write(pc_val);
         opcode_out.write(opcode_val);
-        operand_out.write(operand_val);
+        
+        // Extension de signo de 8 a 16 bits
+        sc_uint<16> extended_opr = 0;
+        sc_uint<8> val8 = operand_val.to_uint();
+        if (val8[7] == 1) extended_opr = 0xFF00 | val8;
+        else extended_opr = val8;
+        operand_out.write(extended_opr);
     }
 
     SC_CTOR(IF_ID_Reg) {
@@ -48,7 +55,7 @@ SC_MODULE(IF_ID_Reg) {
         sensitive << clk.pos();
         pc_val = 0;
         opcode_val = "00000000";
-        operand_val = "00000000";
+        operand_val = 0;
     }
 };
 
@@ -78,9 +85,9 @@ SC_MODULE(ID_EX_Reg) {
     sc_in<bool> is_indirect_in; // New
 
     // Data paths
-    sc_in<sc_uint<8>> operand_in;
-    sc_in<sc_uint<8>> rf_data1_in;
-    sc_in<sc_uint<8>> rf_data2_in;
+    sc_in<sc_uint<16>> operand_in;
+    sc_in<sc_uint<16>> rf_data1_in;
+    sc_in<sc_uint<16>> rf_data2_in;
     
     // Outputs
     sc_out<sc_uint<2>> alu_op_out;
@@ -91,20 +98,22 @@ SC_MODULE(ID_EX_Reg) {
     sc_out<bool> ram_we_out;
     sc_out<bool> is_indirect_out; // New
     
-    sc_out<sc_uint<8>> operand_out;
-    sc_out<sc_uint<8>> rf_data1_out;
-    sc_out<sc_uint<8>> rf_data2_out;
+    sc_out<sc_uint<16>> operand_out;
+    sc_out<sc_uint<16>> rf_data1_out;
+    sc_out<sc_uint<16>> rf_data2_out;
     // To identify the instruction
-    sc_in<sc_uint<8>> opcode_in;
-    sc_out<sc_uint<8>> opcode_out;
-    sc_in<sc_uint<8>> pc_in;
-    sc_out<sc_uint<8>> pc_out;
+    sc_in<sc_uint<16>> opcode_in;
+    sc_out<sc_uint<16>> opcode_out;
+    sc_in<sc_uint<16>> pc_in;
+    sc_out<sc_uint<16>> pc_out;
 
     // Internal states
     sc_uint<2> alu_op_val;
     bool b_in_val, rf_we_val, out_load_val, ram_we_val, is_indirect_val;
     sc_uint<2> rf_idx_w_val, rf_idx_r1_val, rf_idx_r2_val;
-    sc_uint<8> operand_val, rf_data1_val, rf_data2_val, opcode_val, pc_val;
+    sc_uint<16> operand_val, rf_data1_val, rf_data2_val;
+    sc_uint<16> opcode_val;
+    sc_uint<16> pc_val;
 
     void update() {
         if (reset.read() || flush.read()) {
@@ -171,29 +180,31 @@ SC_MODULE(EX_WB_Reg) {
     sc_in<bool> ram_we_ctrl; // Memory write
 
     // Data passed from EX
-    sc_in<sc_uint<8>> alu_result_in;
-    sc_in<sc_uint<8>> operand_in;
-    sc_in<sc_uint<8>> opcode_in;
-    sc_in<sc_uint<8>> rf_data1_in; // In case we need Rd value
-    sc_in<sc_uint<8>> ram_data_in; // In case we fetched from RAM in EX
+    sc_in<sc_uint<16>> alu_result_in;
+    sc_in<sc_uint<16>> operand_in;
+    sc_in<sc_uint<16>> opcode_in;
+    sc_in<sc_uint<16>> rf_data1_in; // In case we need Rd value
+    sc_in<sc_uint<16>> ram_data_in; // In case we fetched from RAM in EX
 
-    sc_in<sc_uint<8>> pc_in;
-    sc_out<sc_uint<8>> pc_out;
+    sc_in<sc_uint<16>> pc_in;
+    sc_out<sc_uint<16>> pc_out;
 
     sc_out<bool> rf_we_out;
     sc_out<sc_uint<2>> rf_idx_w_out;
     sc_out<bool> out_load_out;
     sc_out<bool> ram_we_out;
 
-    sc_out<sc_uint<8>> alu_result_out;
-    sc_out<sc_uint<8>> operand_out;
-    sc_out<sc_uint<8>> opcode_out;
-    sc_out<sc_uint<8>> rf_data1_out;
-    sc_out<sc_uint<8>> ram_data_out;
+    sc_out<sc_uint<16>> alu_result_out;
+    sc_out<sc_uint<16>> operand_out;
+    sc_out<sc_uint<16>> opcode_out;
+    sc_out<sc_uint<16>> rf_data1_out;
+    sc_out<sc_uint<16>> ram_data_out;
 
     bool rf_we_val, out_load_val, ram_we_val;
     sc_uint<2> rf_idx_w_val;
-    sc_uint<8> alu_result_val, operand_val, opcode_val, rf_data1_val, ram_data_val, pc_val;
+    sc_uint<16> alu_result_val, operand_val, rf_data1_val, ram_data_val;
+    sc_uint<16> opcode_val;
+    sc_uint<16> pc_val;
 
     void update() {
         if (reset.read()) {

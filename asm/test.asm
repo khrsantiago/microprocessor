@@ -1,4 +1,4 @@
-; KHR-8 GPR Architecture Test
+; KHR-16 GPR Architecture Test
 ; Este programa suma 10 + 7 usando registros y verifica la memoria
 LDI R1, 10      ; R1 = 10
 LDI R2, 7       ; R2 = 7

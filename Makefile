@@ -19,7 +19,7 @@ TRACES_DIR = traces
 # ==========================================
 CXX = g++
 # Añadimos -I$(INC_DIR) para que g++ encuentre tus .h locales
-CXXFLAGS = -std=c++17 -O2 -Wall $(SYS_INCDIR) -I$(INC_DIR) -I$(INC_DIR)/gate_level
+CXXFLAGS = -std=c++17 -O2 -Wall $(SYS_INCDIR) -I$(INC_DIR)
 LIBS = -lsystemc -lm
 
 # ==========================================
@@ -37,7 +37,7 @@ TEST_BINS = $(patsubst $(TEST_DIR)/tb_%.cpp,$(BIN_DIR)/test_%,$(TEST_SRCS))
 # ==========================================
 # Reglas
 # ==========================================
-all: directories $(MAIN_APPS) $(TEST_BINS)
+all: directories $(MAIN_APPS)
 
 # Crea las carpetas si no existen
 directories:

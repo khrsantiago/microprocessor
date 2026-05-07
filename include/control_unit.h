@@ -7,8 +7,8 @@
 // The ControlUnit is now purely combinatorial (Decodes instructions at the ID stage).
 // No longer a multi-cycle state machine!
 SC_MODULE(ControlUnit) {
-    sc_in<sc_uint<8>> opcode;
-    sc_in<sc_uint<8>> operand; // Needed for Rd, Rs decoding
+    sc_in<sc_uint<16>> opcode;
+    sc_in<sc_uint<16>> operand; // Needed for Rd, Rs decoding (now 16-bit)
     
     // Input flags for branch resolution at ID stage
     sc_in<bool> flag_z;
@@ -47,7 +47,7 @@ SC_MODULE(ControlUnit) {
         out_load.write(0); pc_load.write(0); is_indirect.write(0);
 
         sc_uint<8> op = opcode.read().to_uint();
-        sc_uint<8> opr = operand.read().to_uint();
+        sc_uint<16> opr = operand.read().to_uint();
 
         // 1. Manejo de LOAD de Memoria (LD Rn, [Addr])
         if ((op & 0xFC) == 0x10) { 

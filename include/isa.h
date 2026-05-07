@@ -7,7 +7,7 @@
 
 /**
  * @brief Definiciones de la Arquitectura del Conjunto de Instrucciones (ISA)
- * Formato de Instrucción de 16 bits (Dual-fetch): [OpCode: 8-bit] [Operand: 8-bit]
+ * Formato de Instrucción de 16 bits (Dual-fetch): [OpCode: 8 bits] [Operand: 8 bits]
  */
 enum OpCode {
     OP_NOP = 0x00, // No Operation
@@ -43,6 +43,6 @@ enum OpCode {
 #define REG_R3 3
 
 // En arquitectura de 16 bits discreta no necesitamos mascaras para splittear
-// El Opcode va en un byte entero, el Operando en el siguiente.
+// El OpCode va en el primer byte, el Operando en el siguiente.
 
 #endif // ISA_H

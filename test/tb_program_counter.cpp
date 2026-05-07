@@ -6,7 +6,8 @@ int sc_main(int argc, char* argv[]) {
 
     sc_clock clk("sys_clk", 10, SC_NS);
     sc_signal<bool> sig_reset, sig_en, sig_load;
-    sc_signal<sc_uint<8>> sig_q, sig_data_in;
+    sc_signal<sc_uint<16>> sig_data_in;
+    sc_signal<sc_uint<8>> sig_q;
 
     ProgramCounter Dut("PC_Unit");
     Dut.clk(clk);
@@ -17,7 +18,7 @@ int sc_main(int argc, char* argv[]) {
     Dut.data_in(sig_data_in);
 
 
-    std::cout << "Testing Program Counter (PC) - 8-bit Autonomy\n";
+    std::cout << "Testing Program Counter (PC) - 16-bit Autonomy\n";
     std::cout << "Time  | RST | EN | PC Out | Action\n";
     std::cout << "-------------------------------------------\n";
 

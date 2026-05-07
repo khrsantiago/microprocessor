@@ -5,12 +5,12 @@ LDI R1, 2
 LDI R2, 0
 LDI R3, 1
 
-; --- LOOP (Addr: 8) ---
+LOOP:
 ADD R2, R1     ; Resultado += Multiplicando
 SUB R0, R3     ; Contador--
-JZ  16         ; Si Contador == 0, ir a END
-JMP 8          ; Repetir
-
-; --- END (Addr: 16) ---
+JZ  END         ; Si Contador == 0, ir a END
+JMP LOOP        ; Repetir
+ 
+END:
 OUT R2         ; Muestra 6
 HLT

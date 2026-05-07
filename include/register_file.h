@@ -4,8 +4,8 @@
 #include <systemc.h>
 
 /**
- * @brief Register File (GPR) for KHR-8.
- * Contains 4 x 8-bit registers (R0, R1, R2, R3).
+ * @brief Register File (GPR) for KHR-16.
+ * Contains 4 x 16-bit registers (R0, R1, R2, R3).
  * Dual-read ports, Single-write port.
  */
 SC_MODULE(RegisterFile) {
@@ -15,18 +15,18 @@ SC_MODULE(RegisterFile) {
     sc_in<sc_uint<2>> idx_w;      // Destination Register Index (Write)
     sc_in<sc_uint<2>> idx_r1;     // Source Register 1 Index (Read)
     sc_in<sc_uint<2>> idx_r2;     // Source Register 2 Index (Read)
-    sc_in<sc_uint<8>> data_in;     // Data to write
-
-    sc_out<sc_uint<8>> data_out1;  // Output for Source 1
-    sc_out<sc_uint<8>> data_out2;  // Output for Source 2
-
+    sc_in<sc_uint<16>> data_in;     // Data to write
+ 
+    sc_out<sc_uint<16>> data_out1;  // Output for Source 1
+    sc_out<sc_uint<16>> data_out2;  // Output for Source 2
+ 
     // Debug ports
-    sc_out<sc_uint<8>> r0_out;
-    sc_out<sc_uint<8>> r1_out;
-    sc_out<sc_uint<8>> r2_out;
-    sc_out<sc_uint<8>> r3_out;
-
-    sc_uint<8> regs[4];
+    sc_out<sc_uint<16>> r0_out;
+    sc_out<sc_uint<16>> r1_out;
+    sc_out<sc_uint<16>> r2_out;
+    sc_out<sc_uint<16>> r3_out;
+ 
+    sc_uint<16> regs[4];
 
     void register_logic() {
         if (reset.read() == 1) {

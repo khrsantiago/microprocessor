@@ -28,8 +28,8 @@ public:
         if ((opcode & 0xFC) == 0x50) return "ST IND";
         if ((opcode & 0xFC) == 0xE0) return "OUT";
         
-        if (mnemonics.count(opcode)) return mnemonics[opcode];
-        return "UNKNOWN";
+        if (mnemonics.count((unsigned char)opcode)) return mnemonics[(unsigned char)opcode];
+        return "UNK(" + std::to_string((int)opcode) + ")";
     }
 
     static std::string get_instruction_text(unsigned char opcode, unsigned char operand) {

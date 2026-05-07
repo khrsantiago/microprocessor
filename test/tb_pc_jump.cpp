@@ -6,7 +6,8 @@ int sc_main(int argc, char* argv[]) {
 
     sc_clock clk("sys_clk", 10, SC_NS);
     sc_signal<bool> sig_reset, sig_en, sig_load;
-    sc_signal<sc_uint<8>> sig_data_in, sig_q;
+    sc_signal<sc_uint<16>> sig_data_in;
+    sc_signal<sc_uint<8>> sig_q;
 
     ProgramCounter Dut("PC_Jump_Unit");
     Dut.clk(clk); Dut.reset(sig_reset); Dut.en(sig_en);

@@ -13,7 +13,7 @@
 
 class AssemblerLoader {
 public:
-    static bool load(const std::string& filename, sc_uint<8>* memory, int mem_size = 256) {
+    static bool load(const std::string& filename, sc_uint<16>* memory, int mem_size = 256) {
         std::ifstream file(filename);
         if (!file.is_open()) {
             std::cerr << "Error: No se pudo abrir el archivo " << filename << std::endl;
@@ -88,7 +88,7 @@ public:
             std::stringstream ss(work);
             std::string mnemonic; ss >> mnemonic;
             mnemonic = clean(mnemonic);
-            if (opcodes.count(mnemonic)) current_addr += 2;
+            if (opcodes.count(mnemonic)) current_addr += 1;
             else if (is_num(mnemonic)) current_addr += 1;
         }
 
@@ -166,9 +166,9 @@ public:
                         else if (is_num(t1)) operand = to_num(t1);
                     }
                 }
-                if (current_addr < mem_size - 1) {
-                    memory[current_addr] = op & 0xFF; memory[current_addr + 1] = operand & 0xFF;
-                    current_addr += 2;
+                if (current_addr < mem_size) {
+                    memory[current_addr] = ((op & 0xFF) << 8) | (operand & 0xFF);
+                    current_addr += 1;
                 }
             } else if (is_num(mnemonic)) {
                 if (current_addr < mem_size) memory[current_addr++] = to_num(mnemonic) & 0xFF;

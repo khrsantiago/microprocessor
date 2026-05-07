@@ -14,7 +14,7 @@ int sc_main(int argc, char* argv[]) {
     Computer.clk(clk);
     Computer.reset(reset);  
 
-    std::cout << "[REGRESIÓN] Evaluando KHR-8 Pipeline con Datapath Forwarding...\n";
+    std::cout << "[REGRESIÓN] Evaluando KHR-16 Pipeline con Datapath Forwarding...\n";
 
     // 1. Cargamos el programa base desde disco duro
     if (!AssemblerLoader::load("asm/program.asm", Computer.DataRam->memory) || 
@@ -32,7 +32,7 @@ int sc_main(int argc, char* argv[]) {
     bool halted = false;
     for(int i = 0; i < 50 && !halted; i++) {
         sc_start(10, SC_NS);
-        if (Computer.s_ir_opcode.read().to_uint() == 0xF) { // Halt
+        if (Computer.s_ir_opcode.read().to_uint() == OP_HLT) { // Halt
             halted = true;
             sc_start(30, SC_NS); // Drenar Pipeline
         }

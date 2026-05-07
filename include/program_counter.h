@@ -3,17 +3,17 @@
 
 #include <systemc.h>
 
-// Program Counter (PC) - 8 bits (Direcciona 256 palabras de RAM)
+// Program Counter (PC) - 16 bits (Direcciona 256 palabras de RAM)
 SC_MODULE(ProgramCounter) {
     sc_in<bool> clk;            // Reloj del sistema
     sc_in<bool> reset;          // Reset asincrono (Vuelve a la instruccion 0)
     sc_in<bool> en;             // Enable (Permite avanzar a la siguiente instruccion)
     sc_in<bool> load;           // Habilitador de salto (Jump Load)
-    sc_in<sc_uint<8>> data_in;  // Nueva direccion proveniente del IR
-    sc_out<sc_uint<8>> q;       // Direccion de salida hacia la RAM
+    sc_in<sc_uint<16>> data_in;  // Nueva direccion de 16 bits
+    sc_out<sc_uint<16>> q;       // Direccion de salida hacia la ROM (16 bits)
 
-    // Registro interno para mantener la cuenta
-    sc_uint<8> count;
+    // Registro interno para mantener la cuenta (Ahora de 16 bits)
+    sc_uint<16> count;
 
     void update_logic() {
         // Prioridad 1: Reset (Vuelve al inicio)
@@ -28,7 +28,7 @@ SC_MODULE(ProgramCounter) {
             } 
             // Prioridad 3: Incremento secuencial
             else if (en.read() == true) {
-                count = count + 2;
+                count = count + 1;
             }
         }
         q.write(count);
