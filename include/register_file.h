@@ -37,9 +37,20 @@ SC_MODULE(RegisterFile) {
             }
         }
         
-        // Continuous read (combinatorial or clocked? usually RF read is combinatorial)
-        data_out1.write(regs[idx_r1.read()]);
-        data_out2.write(regs[idx_r2.read()]);
+        // Continuous read with Write-Through logic (N-1 to N dependency in ID)
+        sc_uint<2> r1 = idx_r1.read();
+        sc_uint<2> r2 = idx_r2.read();
+        sc_uint<16> out1 = regs[r1];
+        sc_uint<16> out2 = regs[r2];
+
+        // If currently writing to the same register we are reading
+        if (we.read() == 1) {
+            if (idx_w.read() == r1) out1 = data_in.read();
+            if (idx_w.read() == r2) out2 = data_in.read();
+        }
+
+        data_out1.write(out1);
+        data_out2.write(out2);
 
         // Debug outputs
         r0_out.write(regs[0]);

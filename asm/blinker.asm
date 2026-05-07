@@ -1,93 +1,97 @@
-; blinker.asm - Hardcoded Conway's Blinker for KHR-16
-; Screen: 16x16, VRAM start: 256
- 
-; Permanent Constants
-LDI R3, 1      ; R3 = 1
+; blinker.asm - Oscilador "Blinker" de Conway (Juego de la Vida)
+; Este programa alterna entre una línea horizontal y una vertical de 3 píxeles.
+; Resolución: 16x16, Dirección VRAM inicial: 256.
+
+; --- Inicialización de Constantes ---
+LDI R3, 1      ; Constante 1 para incrementos/decrementos
 LDI R1, 64
 NOP
 NOP
 ADD R1, R1     ; R1 = 128
 NOP
 NOP
-ADD R1, R1     ; R1 = 256 (Base VRAM)
+ADD R1, R1     ; R1 = 256 (Base de la VRAM)
 NOP
 NOP
- 
-; Draw Center (136 + 256 = 392)
-LDI R2, 68
+
+; --- Dibujar el Centro Permanente (Fila 8, Col 8 -> Índice 136) ---
+; Dirección = Base(256) + 136 = 392
+LDI R2, 68     ; 68 * 2 = 136
 NOP
 NOP
 ADD R2, R2     ; R2 = 136
 NOP
 NOP
-ADD R2, R1     ; R2 = 392
+ADD R2, R1     ; R2 = 136 + 256 = 392
 NOP
 NOP
-LDI R0, 1
-ST [R2], R0    ; Center Pixel ON
- 
+LDI R0, 1      ; Color Blanco
+ST [R2], R0    ; Enciende el píxel central permanentemente
+
 MAIN:
-    ; === STATE 1: HORIZONTAL (391, 393) ===
-    LDI R0, 1      ; Color ON
+    ; === ESTADO 1: HORIZONTAL (Píxeles a los lados del centro) ===
+    LDI R0, 1      ; Color Blanco (Encendido)
     
-    ; 391
+    ; Píxel Izquierdo (392 - 1 = 391)
     LDI R2, 68
     NOP
     NOP
-    ADD R2, R2
+    ADD R2, R2     ; 136
     NOP
     NOP
     SUB R2, R3     ; 135
     NOP
     NOP
-    ADD R2, R1     ; 391
+    ADD R2, R1     ; 135 + 256 = 391
     NOP
     NOP
     ST [R2], R0
     
-    ; 393
+    ; Píxel Derecho (392 + 1 = 393)
     LDI R2, 68
     NOP
     NOP
-    ADD R2, R2
+    ADD R2, R2     ; 136
     NOP
     NOP
     ADD R2, R3     ; 137
     NOP
     NOP
-    ADD R2, R1     ; 393
+    ADD R2, R1     ; 137 + 256 = 393
     NOP
     NOP
     ST [R2], R0
     
-    ; Clear State 2 (376, 408)
-    LDI R0, 0      ; Color OFF
+    ; --- Limpiar Píxeles del Estado 2 (Vertical) ---
+    LDI R0, 0      ; Color Negro (Apagado)
     
-    ; 376 (120 + 256)
+    ; Píxel Superior (Y-1 -> 136 - 16 = 120)
+    ; Dirección = 120 + 256 = 376
     LDI R2, 120
     NOP
     NOP
-    ADD R2, R1
+    ADD R2, R1     ; 376
     NOP
     NOP
     ST [R2], R0
     
-    ; 408 (152 + 256)
-    LDI R2, 76
+    ; Píxel Inferior (Y+1 -> 136 + 16 = 152)
+    ; Dirección = 152 + 256 = 408
+    LDI R2, 76     ; 76 * 2 = 152
     NOP
     NOP
-    ADD R2, R2
+    ADD R2, R2     ; 152
     NOP
     NOP
-    ADD R2, R1
+    ADD R2, R1     ; 152 + 256 = 408
     NOP
     NOP
     ST [R2], R0
     
-    LDI R0, 1      ; Restore ON for OUT
-    OUT R0
+    LDI R0, 1      ; Señal para el visualizador
+    OUT R0         ; Actualizar pantalla
     
-    ; Delay
+    ; --- Retardo (Delay) ---
     LDI R2, 20
 D1:
     SUB R2, R3
@@ -96,11 +100,11 @@ D1:
     JZ D1E
     JMP D1
 D1E:
- 
-    ; === STATE 2: VERTICAL (376, 408) ===
-    LDI R0, 1      ; Color ON
+
+    ; === ESTADO 2: VERTICAL (Píxeles arriba y abajo del centro) ===
+    LDI R0, 1      ; Color Blanco (Encendido)
     
-    ; 376
+    ; Píxel Superior (376)
     LDI R2, 120
     NOP
     NOP
@@ -109,7 +113,7 @@ D1E:
     NOP
     ST [R2], R0
     
-    ; 408
+    ; Píxel Inferior (408)
     LDI R2, 76
     NOP
     NOP
@@ -121,10 +125,10 @@ D1E:
     NOP
     ST [R2], R0
     
-    ; Clear State 1 (391, 393)
-    LDI R0, 0      ; Color OFF
+    ; --- Limpiar Píxeles del Estado 1 (Horizontal) ---
+    LDI R0, 0      ; Color Negro (Apagado)
     
-    ; 391
+    ; Píxel Izquierdo (391)
     LDI R2, 68
     NOP
     NOP
@@ -139,7 +143,7 @@ D1E:
     NOP
     ST [R2], R0
     
-    ; 393
+    ; Píxel Derecho (393)
     LDI R2, 68
     NOP
     NOP
@@ -154,10 +158,10 @@ D1E:
     NOP
     ST [R2], R0
     
-    LDI R0, 1
+    LDI R0, 1      ; Actualizar pantalla
     OUT R0
     
-    ; Delay
+    ; --- Retardo (Delay) ---
     LDI R2, 20
 D2:
     SUB R2, R3
@@ -167,4 +171,4 @@ D2:
     JMP D2
 D2E:
     
-    JMP MAIN
+    JMP MAIN       ; Volver al inicio del ciclo de animación

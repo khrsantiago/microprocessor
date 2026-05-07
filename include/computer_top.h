@@ -155,10 +155,17 @@ SC_MODULE(ComputerTop) {
         sc_uint<16> id2 = s_rf_data2.read();
         sc_uint<16> wb_data = s_wb_rf_data_in.read();
  
-        // WB->ID Forwarding
+        // Forwarding from EX stage (Instruction N-1 to N) - Zero stall support
+        if (s_ex_rf_we.read()) {
+            if (s_ex_rf_idx_w.read() == s_id_rf_idx_r1.read()) id1 = s_ex_data_fwd.read();
+            if (s_ex_rf_idx_w.read() == s_id_rf_idx_r2.read()) id2 = s_ex_data_fwd.read();
+        }
+
+        // Forwarding from WriteBack stage (Instruction N-2 to N)
+        // Note: Priority is given to EX stage if both match.
         if (s_wb_rf_we.read()) {
-            if (s_wb_rf_idx_w.read() == s_id_rf_idx_r1.read()) id1 = wb_data;
-            if (s_wb_rf_idx_w.read() == s_id_rf_idx_r2.read()) id2 = wb_data;
+            if (s_wb_rf_idx_w.read() == s_id_rf_idx_r1.read() && !(s_ex_rf_we.read() && s_ex_rf_idx_w.read() == s_id_rf_idx_r1.read())) id1 = wb_data;
+            if (s_wb_rf_idx_w.read() == s_id_rf_idx_r2.read() && !(s_ex_rf_we.read() && s_ex_rf_idx_w.read() == s_id_rf_idx_r2.read())) id2 = wb_data;
         }
          
         s_rf_data1_fwd.write(id1);
@@ -207,9 +214,12 @@ SC_MODULE(ComputerTop) {
         if ((op_ex & 0xFC) == 0x20) {
             ex_data = s_ex_operand.read();
         }
-        else if ((op_ex & 0xFC) == 0x10) ex_data = s_mem_data_mux.read(); // Regular LD
+        else if ((op_ex & 0xFC) == 0x10 || (op_ex & 0xFC) == 0x40) 
+            ex_data = s_mem_data_mux.read(); // Both Direct and Indirect Loads
         else if (op_ex == OP_MOV) ex_data = val1;
-        else ex_data = s_ex_alu_result.read();
+        else if (op_ex == OP_ADD_RR) ex_data = val1 + val2;
+        else if (op_ex == OP_SUB_RR) ex_data = val1 - val2;
+        else ex_data = s_ex_alu_result.read(); // Fallback for others
         s_ex_data_fwd.write(ex_data);
     }
 
@@ -224,12 +234,20 @@ SC_MODULE(ComputerTop) {
         bool fc = s_flags_c.read();
         bool fn = s_flags_n.read();
         bool fo = s_flags_o.read();
-        if (s_ex_alu_en.read()) {
-            fz = s_ex_alu_zero.read();
-            fc = s_ex_alu_carry.read();
-            fn = s_ex_alu_negative.read();
-            fo = s_ex_alu_overflow.read();
+        // --- FLAG FORWARDING (EX -> ID) ---
+        // Combinatorial detection of ALU ops in EX stage to resolve branch hazards
+        uint8_t op_ex = s_ex_opcode.read().to_uint();
+        // Solo instrucciones que afectan flags: ADD_RR (0x60), SUB_RR (0x70)
+        bool is_alu = (op_ex == 0x60 || op_ex == 0x70); 
+
+        if (is_alu) {
+            fz = (s_ex_data_fwd.read() == 0);
+            fn = (s_ex_data_fwd.read() >> 15) & 0x1;
+        } else {
+            fz = s_flags_z.read();
+            fn = s_flags_n.read();
         }
+ 
         s_id_fwd_z.write(fz);
         s_id_fwd_c.write(fc);
         s_id_fwd_n.write(fn);
@@ -278,11 +296,11 @@ SC_MODULE(ComputerTop) {
         SC_METHOD(ex_process);
         sensitive << s_ex_rf_data1 << s_ex_rf_data2 << s_wb_rf_we << s_wb_rf_idx_w << s_wb_rf_data_in
                   << s_ex_rf_idx_r1 << s_ex_rf_idx_r2 << s_ex_opcode << s_ex_operand << s_ram_out
-                  << s_ex_is_indirect << s_ex_alu_result;
+                  << s_ex_is_indirect << s_ex_alu_result << s_mem_data_mux;
 
         SC_METHOD(pipeline_glue);
         sensitive << clk << s_rom_data << s_id_pc << s_ex_opcode << s_ex_operand 
-                  << s_ex_pc_dbg_internal << s_wb_pc_dbg_internal
+                  << s_ex_pc_dbg_internal << s_wb_pc_dbg_internal << s_ex_data_fwd
                   << s_ex_alu_zero << s_ex_alu_carry << s_ex_alu_negative << s_ex_alu_en
                   << s_flags_z << s_flags_c << s_flags_n << s_ex_ram_addr
                   << s_ram_out << s_vram_out << s_mem_data_mux;

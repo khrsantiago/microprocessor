@@ -42,11 +42,17 @@ SC_MODULE(IF_ID_Reg) {
         pc_out.write(pc_val);
         opcode_out.write(opcode_val);
         
-        // Extension de signo de 8 a 16 bits
+        // Extension de signo selectiva (Solo LDI)
         sc_uint<16> extended_opr = 0;
         sc_uint<8> val8 = operand_val.to_uint();
-        if (val8[7] == 1) extended_opr = 0xFF00 | val8;
-        else extended_opr = val8;
+        uint8_t op = opcode_val.to_uint();
+        
+        if (op >= 0x20 && op <= 0x23) { // OP_LDI_R0 to OP_LDI_R3
+            if (val8[7] == 1) extended_opr = 0xFF00 | val8;
+            else extended_opr = val8;
+        } else {
+            extended_opr = val8;
+        }
         operand_out.write(extended_opr);
     }
 

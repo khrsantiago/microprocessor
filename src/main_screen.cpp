@@ -16,12 +16,22 @@
 // Soporte de Color: RGB565
 // =========================================================================
 
-void print_pixel(uint16_t color_565) {
-    if (color_565 == 0) {
-        std::cout << "\u2591 "; // Bloque ligero (Vacio)
+void print_pixel(uint16_t c) {
+    if (c == 0) {
+        std::cout << "\033[90m\u2591 "; // Gris oscuro (vacio)
     } else {
-        std::cout << "\u2588 "; // Bloque solido (Lleno)
+        // Siempre decodificar como RGB565
+        int r = ((c >> 11) & 0x1F) << 3;
+        int g = ((c >> 5)  & 0x3F) << 2;
+        int b = ( c        & 0x1F) << 3;
+        // Si el color es muy oscuro (< umbral), forzar blanco brillante
+        if (r + g + b < 30) {
+            std::cout << "\033[97m\u2588 ";
+        } else {
+            std::cout << "\033[38;2;" << r << ";" << g << ";" << b << "m\u2588 ";
+        }
     }
+    std::cout << "\033[0m";
 }
 
 int sc_main(int argc, char* argv[]) {
@@ -107,6 +117,7 @@ int sc_main(int argc, char* argv[]) {
             }
         }
         
+
         // Reset flag cuando el PC avanza
         if (Computer.s_pc_en.read() == 1) rendered_this_out = false;
     }
