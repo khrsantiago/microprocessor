@@ -104,6 +104,7 @@ R1_S: ST [20], R1       ; Guardar nueva Y1
     LD R3, [51]         ; Cargar Color Verde
     NOP
     ST [R2], R3
+    NOP
 
     ; --- PROCESAR GOTA 2 ---
     ; (Misma lógica: Borrar, Mover, Pintar)
@@ -154,6 +155,7 @@ R2_S: ST [21], R1
     LD R3, [51]
     NOP
     ST [R2], R3
+    NOP
 
     ; --- PROCESAR GOTA 3 ---
     LD R0, [26]
@@ -203,6 +205,7 @@ R3_S: ST [22], R1
     LD R3, [51]
     NOP
     ST [R2], R3
+    NOP
 
     ; --- PROCESAR GOTA 4 ---
     LD R0, [27]
@@ -254,4 +257,11 @@ R4_S: ST [23], R1
     ST [R2], R3
 
     OUT R0              ; Actualizar pantalla después de mover las 4 gotas
-    JMP MAIN            ; Repetir bucle infinito
+    
+    ; --- Retardo (Delay) para controlar velocidad de la lluvia ---
+    LDI R2, 100         ; Ajustar valor para cambiar la velocidad (mayor = más lento)
+DLY:
+    LDI R3, 1
+    SUB R2, R3
+    JZ MAIN             ; Volver al inicio del ciclo principal
+    JMP DLY             ; Continuar retardo

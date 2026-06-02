@@ -124,7 +124,7 @@ SC_MODULE(ControlUnit) {
 
     SC_CTOR(ControlUnit) {
         SC_METHOD(decode_logic);
-        sensitive << opcode << flag_z << flag_c << flag_n << flag_o;
+        sensitive << opcode << operand << flag_z << flag_c << flag_n << flag_o;
     }
 };
 

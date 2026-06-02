@@ -36,16 +36,20 @@ void print_pixel(uint16_t c) {
 
 int sc_main(int argc, char* argv[]) {
     if (argc < 2) {
-        std::cerr << "Uso: " << argv[0] << " <archivo.asm> [--delay=X]" << std::endl;
+        std::cerr << "Uso: " << argv[0] << " <archivo.asm> [--delay=X] [--manual] [--no-clear] [--frames=X]" << std::endl;
         return 1;
     }
 
     int delay_ms = 50; 
     bool is_manual_mode = false;
+    bool clear_screen = true;
+    int max_frames = -1;
     for (int i = 2; i < argc; ++i) {
         std::string arg = argv[i];
         if (arg.find("--delay=") == 0) delay_ms = std::stoi(arg.substr(8));
         else if (arg == "--manual") is_manual_mode = true;
+        else if (arg == "--no-clear") clear_screen = false;
+        else if (arg.find("--frames=") == 0) max_frames = std::stoi(arg.substr(9));
     }
 
     sc_report_handler::set_actions(SC_INFO, SC_DO_NOTHING);
@@ -67,6 +71,10 @@ int sc_main(int argc, char* argv[]) {
         std::cerr << "Fallo al inicializar la ROM." << std::endl;
         return 1;
     }
+    
+    for (int i = 0; i < 40; i++) {
+        printf("ROM[%02d]: %04X\n", i, Computer.InstRom->memory[i].to_uint());
+    }
 
     bool halted = false;
     int frame = 0;
@@ -76,7 +84,11 @@ int sc_main(int argc, char* argv[]) {
     sc_start(20, SC_NS);
     reset_sg.write(false);
 
-    std::cout << "\033[2J\033[H";
+    if (clear_screen) {
+        std::cout << "\033[2J\033[H";
+    } else {
+        std::cout << "\n";
+    }
 
     for(unsigned long i = 0; i < 20000000 && !halted; i++) {
         sc_start(10, SC_NS);
@@ -94,7 +106,11 @@ int sc_main(int argc, char* argv[]) {
             rendered_this_out = true;
             frame++;
             
-            std::cout << "\033[H"; 
+            if (clear_screen) {
+                std::cout << "\033[H"; 
+            } else {
+                std::cout << "\n";
+            }
             std::cout << IsAHelper::BOLD << IsAHelper::CYAN << "      KHR-8 16-BIT GPU ENGINE (16x16 Dedicada)" << IsAHelper::RESET << std::endl;
             std::cout << "  " << std::string(42, '-') << std::endl;
             
@@ -114,6 +130,10 @@ int sc_main(int argc, char* argv[]) {
                 std::cin.get();
             } else if (delay_ms > 0) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(delay_ms));
+            }
+
+            if (max_frames > 0 && frame >= max_frames) {
+                break;
             }
         }
         
